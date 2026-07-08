@@ -14,11 +14,39 @@
 
 ---
 
+## Важное уточнение по Supabase Auth
+
+В Supabase уже есть системная таблица:
+
+```text
+auth.users
+```
+
+Она отвечает за техническую авторизацию пользователя.
+
+Для прикладных данных пользователя в MVP используется таблица:
+
+```text
+public.profiles
+```
+
+Именно `profiles` хранит роль, имя, телефон и другие данные, которые нужны приложению.
+
+Связь должна быть такой:
+
+```text
+auth.users.id → public.profiles.id
+```
+
+Проектная таблица `users` в MVP не создаётся, чтобы не дублировать системную таблицу Supabase.
+
+---
+
 ## Основные сущности
 
 В MVP используются следующие таблицы:
 
-- users;
+- profiles;
 - caregiver_profiles;
 - client_requests;
 - profile_statuses;
@@ -26,19 +54,20 @@
 
 ---
 
-## users
+## profiles
 
-Таблица пользователей приложения.
+Прикладная таблица профилей пользователей приложения.
 
 В этой таблице хранятся базовые данные всех пользователей: сиделок, клиентов и администраторов.
 
 ### Поля
 
-- id — уникальный идентификатор пользователя;
-- email — email пользователя;
+- id — уникальный идентификатор профиля, совпадает с `auth.users.id`;
+- full_name — имя или ФИО пользователя;
+- email — email пользователя, если используется в приложении;
 - phone — телефон пользователя;
 - role — роль пользователя;
-- created_at — дата создания пользователя;
+- created_at — дата создания профиля;
 - updated_at — дата последнего обновления.
 
 ### Возможные роли
@@ -47,9 +76,11 @@
 - client — клиент;
 - admin — администратор.
 
-### Примечание
+### Ограничения
 
-Один пользователь может иметь одну основную роль в MVP.
+- `profiles.id` должен ссылаться на `auth.users.id`;
+- `role` должен принимать только значения `caregiver`, `client`, `admin`;
+- один пользователь может иметь одну основную роль в MVP.
 
 В будущих версиях можно добавить возможность нескольких ролей у одного пользователя.
 
@@ -64,7 +95,7 @@
 ### Поля
 
 - id — уникальный идентификатор анкеты;
-- user_id — ссылка на пользователя из таблицы users;
+- profile_id — ссылка на профиль пользователя из таблицы `profiles`;
 - full_name — ФИО сиделки;
 - city — город;
 - district — район работы;
@@ -96,8 +127,14 @@
 
 ### Связи
 
-- caregiver_profiles.user_id связан с users.id.
-- Один пользователь с ролью caregiver может иметь одну активную анкету.
+- `caregiver_profiles.profile_id` связан с `profiles.id`.
+- Один профиль с ролью `caregiver` может иметь одну активную анкету.
+
+### Минимальные ограничения
+
+- `status` должен принимать только значения из справочника `profile_statuses`;
+- обязательные для публикации поля должны быть заполнены до перевода анкеты в `approved`;
+- обычный пользователь не должен иметь права напрямую менять `status`.
 
 ---
 
@@ -112,7 +149,7 @@
 ### Поля
 
 - id — уникальный идентификатор заявки;
-- user_id — ссылка на пользователя из таблицы users;
+- profile_id — ссылка на профиль клиента из таблицы `profiles`;
 - city — город;
 - district — район;
 - care_type — тип ухода;
@@ -132,7 +169,7 @@
 
 ### Связи
 
-- client_requests.user_id связан с users.id.
+- `client_requests.profile_id` связан с `profiles.id`.
 - Один клиент может создать несколько заявок.
 
 ---
@@ -162,7 +199,7 @@
 
 Клиент её не видит.
 
-#### pending
+#### pending_review
 
 Ожидает модерации.
 
@@ -206,7 +243,7 @@
 
 - id — уникальный идентификатор записи;
 - caregiver_profile_id — ссылка на анкету сиделки;
-- admin_user_id — ссылка на администратора из таблицы users;
+- admin_profile_id — ссылка на профиль администратора из таблицы `profiles`;
 - old_status — предыдущий статус анкеты;
 - new_status — новый статус анкеты;
 - reason — причина решения;
@@ -215,8 +252,8 @@
 
 ### Связи
 
-- moderation_logs.caregiver_profile_id связан с caregiver_profiles.id.
-- moderation_logs.admin_user_id связан с users.id.
+- `moderation_logs.caregiver_profile_id` связан с `caregiver_profiles.id`.
+- `moderation_logs.admin_profile_id` связан с `profiles.id`.
 
 ### Примеры действий
 
@@ -241,7 +278,7 @@
 Клиент не видит анкеты со статусами:
 
 - draft;
-- pending;
+- pending_review;
 - rejected;
 - hidden.
 
@@ -250,19 +287,19 @@
 Сиделка видит свою анкету в любом статусе:
 
 - draft;
-- pending;
+- pending_review;
 - approved;
 - rejected;
 - hidden.
 
-Также сиделка должна видеть причину отклонения, если анкета получила статус rejected.
+Также сиделка должна видеть причину отклонения, если анкета получила статус `rejected`.
 
 ## Что видит администратор
 
 Администратор видит все анкеты во всех статусах:
 
 - draft;
-- pending;
+- pending_review;
 - approved;
 - rejected;
 - hidden.
@@ -273,21 +310,35 @@
 
 ## Основные связи между таблицами
 
-### users → caregiver_profiles
+### auth.users → profiles
 
-Один пользователь с ролью caregiver может иметь одну анкету сиделки.
-
-Связь:
-
-users.id → caregiver_profiles.user_id
-
-### users → client_requests
-
-Один пользователь с ролью client может иметь несколько клиентских заявок.
+Один пользователь Supabase Auth имеет один прикладной профиль MVP.
 
 Связь:
 
-users.id → client_requests.user_id
+```text
+auth.users.id → profiles.id
+```
+
+### profiles → caregiver_profiles
+
+Один профиль с ролью `caregiver` может иметь одну активную анкету сиделки.
+
+Связь:
+
+```text
+profiles.id → caregiver_profiles.profile_id
+```
+
+### profiles → client_requests
+
+Один профиль с ролью `client` может иметь несколько клиентских заявок.
+
+Связь:
+
+```text
+profiles.id → client_requests.profile_id
+```
 
 ### caregiver_profiles → moderation_logs
 
@@ -295,15 +346,19 @@ users.id → client_requests.user_id
 
 Связь:
 
+```text
 caregiver_profiles.id → moderation_logs.caregiver_profile_id
+```
 
-### users → moderation_logs
+### profiles → moderation_logs
 
-Один пользователь с ролью admin может выполнить много действий модерации.
+Один профиль с ролью `admin` может выполнить много действий модерации.
 
 Связь:
 
-users.id → moderation_logs.admin_user_id
+```text
+profiles.id → moderation_logs.admin_profile_id
+```
 
 ---
 
@@ -319,7 +374,7 @@ users.id → moderation_logs.admin_user_id
 - skills;
 - description.
 
-Если хотя бы одно обязательное поле не заполнено, анкета не должна получать статус approved.
+Если хотя бы одно обязательное поле не заполнено, анкета не должна получать статус `approved`.
 
 ---
 
@@ -329,37 +384,82 @@ users.id → moderation_logs.admin_user_id
 
 Когда сиделка впервые создаёт анкету, статус:
 
+```text
 draft
+```
 
 ### Отправка на модерацию
 
 Когда сиделка отправляет анкету на проверку, статус меняется:
 
-draft → pending
+```text
+draft → pending_review
+```
 
 ### Одобрение
 
 Когда администратор одобряет анкету, статус меняется:
 
-pending → approved
+```text
+pending_review → approved
+```
 
 ### Отклонение
 
 Когда администратор отклоняет анкету, статус меняется:
 
-pending → rejected
+```text
+pending_review → rejected
+```
 
 ### Повторная отправка
 
 Если сиделка исправила отклонённую анкету и отправила её снова:
 
-rejected → pending
+```text
+rejected → pending_review
+```
 
 ### Скрытие
 
 Если администратор скрывает уже опубликованную анкету:
 
+```text
 approved → hidden
+```
+
+---
+
+## Индексы для MVP
+
+Для первой версии нужно предусмотреть индексы:
+
+- `caregiver_profiles.status` — для фильтрации опубликованных анкет;
+- `caregiver_profiles.city` — для поиска по городу;
+- `caregiver_profiles.profile_id` — для быстрого поиска анкеты сиделки;
+- `client_requests.profile_id` — для заявок клиента;
+- `moderation_logs.caregiver_profile_id` — для истории модерации анкеты;
+- `moderation_logs.admin_profile_id` — для истории действий администратора.
+
+---
+
+## Пагинация и лимиты списка сиделок
+
+Клиентский список сиделок не должен загружаться неограниченным запросом.
+
+Минимальное правило для списка:
+
+```text
+status = approved
+city = выбранный город
+limit = 20 или 50
+order by approved_at desc / created_at desc
+pagination: page 1, page 2, ...
+```
+
+Для Supabase/PostgREST важно явно задавать лимит и механизм следующей страницы, например через `range` или другой выбранный способ пагинации.
+
+Не использовать неограниченный `select('*')` для таблицы `caregiver_profiles`.
 
 ---
 
