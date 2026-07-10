@@ -1,8 +1,8 @@
 import 'package:care_platform_app/core/config/app_config.dart';
 import 'package:care_platform_app/core/theme/app_theme.dart';
 import 'package:care_platform_app/features/auth/domain/auth_gateway.dart';
-import 'package:care_platform_app/features/auth/presentation/auth_placeholder_screen.dart';
 import 'package:care_platform_app/features/auth/presentation/login_screen.dart';
+import 'package:care_platform_app/features/auth/presentation/registration_screen.dart';
 import 'package:care_platform_app/features/auth/presentation/welcome_screen.dart';
 import 'package:care_platform_app/features/caregiver/presentation/caregiver_placeholder_screen.dart';
 import 'package:care_platform_app/features/client/presentation/client_placeholder_screen.dart';
@@ -34,8 +34,7 @@ class CarePlatformApp extends StatelessWidget {
           initializationError: initializationError,
         ),
         AppRoutes.login: (_) => LoginScreen(authGateway: authGateway),
-        AppRoutes.register: (_) =>
-            const AuthPlaceholderScreen(title: 'Регистрация'),
+        AppRoutes.register: (_) => RegistrationScreen(authGateway: authGateway),
         AppRoutes.caregiver: (_) => const CaregiverPlaceholderScreen(),
         AppRoutes.client: (_) => const ClientPlaceholderScreen(),
       },

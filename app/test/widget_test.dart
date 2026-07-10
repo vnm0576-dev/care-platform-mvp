@@ -82,14 +82,53 @@ void main() {
     expect(gateway.email, 'caregiver@example.com');
     expect(gateway.password, 'secure-pass');
   });
+
+  testWidgets('submits caregiver registration metadata to the auth gateway', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthGateway();
+    await tester.pumpWidget(
+      CarePlatformApp(config: configuredAppConfig, authGateway: gateway),
+    );
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Зарегистрироваться'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Регистрация'), findsWidgets);
+    expect(find.byType(TextFormField), findsNWidgets(4));
+    expect(find.text('Я предлагаю услуги сиделки'), findsOneWidget);
+    expect(find.text('Я ищу сиделку'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'Ирина Петрова');
+    await tester.enterText(
+      find.byType(TextFormField).at(1),
+      'irina@example.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(2), '+79990000000');
+    await tester.enterText(find.byType(TextFormField).at(3), 'secure-pass-123');
+    await tester.ensureVisible(find.byType(Checkbox));
+    await tester.tap(find.byType(Checkbox));
+    final submitButton = find.widgetWithText(FilledButton, 'Создать аккаунт');
+    await tester.ensureVisible(submitButton);
+    await tester.tap(submitButton);
+    await tester.pumpAndSettle();
+
+    expect(gateway.signUpRequest?.metadata, {
+      'full_name': 'Ирина Петрова',
+      'role': 'caregiver',
+      'phone': '+79990000000',
+    });
+  });
 }
 
 class _FakeAuthGateway implements AuthGateway {
   String? email;
   String? password;
+  AuthRegistrationRequest? signUpRequest;
 
   @override
   Future<RegistrationResult> signUp(AuthRegistrationRequest request) async {
+    signUpRequest = request;
     return const RegistrationResult(needsEmailConfirmation: false);
   }
 
