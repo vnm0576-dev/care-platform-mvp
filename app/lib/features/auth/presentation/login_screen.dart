@@ -1,7 +1,12 @@
+import 'package:care_platform_app/features/auth/domain/auth_gateway.dart';
+import 'package:care_platform_app/features/auth/domain/auth_registration_request.dart';
+import 'package:care_platform_app/navigation/app_routes.dart';
 import 'package:flutter/material.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({required this.authGateway, super.key});
+
+  final AuthGateway authGateway;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -12,12 +17,48 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      final role = await widget.authGateway.signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+      if (!mounted) {
+        return;
+      }
+      final route = switch (role) {
+        AppRole.caregiver => AppRoutes.caregiver,
+        AppRole.client => AppRoutes.client,
+      };
+      await Navigator.pushReplacementNamed(context, route);
+    } on Object catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Не удалось выполнить вход. Попробуйте ещё раз.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override
@@ -64,19 +105,25 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ? Icons.visibility_off_outlined
                                 : Icons.visibility_outlined,
                           ),
-                          onPressed: () => setState(
-                            () => _passwordVisible = !_passwordVisible,
-                          ),
+                          onPressed: _isSubmitting
+                              ? null
+                              : () => setState(
+                                  () => _passwordVisible = !_passwordVisible,
+                                ),
                         ),
                       ),
                       validator: _validatePassword,
                     ),
                     const SizedBox(height: 24),
                     FilledButton(
-                      onPressed: () {
-                        _formKey.currentState!.validate();
-                      },
-                      child: const Text('Войти'),
+                      onPressed: _isSubmitting ? null : _submit,
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Войти'),
                     ),
                   ],
                 ),
