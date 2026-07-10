@@ -37,9 +37,7 @@ void main() {
     );
   });
 
-  testWidgets('opens the login placeholder from the welcome screen', (
-    tester,
-  ) async {
+  testWidgets('opens the login form from the welcome screen', (tester) async {
     await tester.pumpWidget(
       const CarePlatformApp(
         config: AppConfig(
@@ -53,9 +51,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Вход'), findsWidgets);
-    expect(
-      find.text('Экран будет реализован на следующем этапе.'),
-      findsOneWidget,
-    );
+    expect(find.byType(TextFormField), findsNWidgets(2));
+    expect(find.text('Email'), findsOneWidget);
+    expect(find.text('Пароль'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Войти'), findsOneWidget);
   });
 }

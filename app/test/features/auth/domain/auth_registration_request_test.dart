@@ -27,9 +27,6 @@ void main() {
       role: AppRole.client,
     );
 
-    expect(request.metadata, {
-      'full_name': 'Сергей Иванов',
-      'role': 'client',
-    });
+    expect(request.metadata, {'full_name': 'Сергей Иванов', 'role': 'client'});
   });
 }
