@@ -6,17 +6,21 @@ This directory contains the executable PostgreSQL foundation for MVP v1.
 
 - `migrations/001_initial_schema.sql` — tables, constraints, relationships, timestamp triggers and indexes.
 - `migrations/002_rls_policies.sql` — least-privilege grants, RLS policies and protected status-transition RPC functions.
+- `migrations/003_auth_foundation.sql` — automatic `auth.users` → `public.profiles` registration trigger and role validation.
 - `seed/001_profile_statuses.sql` — idempotent seed for caregiver profile statuses.
 - `tests/001_initial_schema_test.sql` — database-level schema assertions.
 - `tests/002_rls_policies_test.sql` — role isolation, visibility and moderation assertions.
+- `tests/003_auth_foundation_test.sql` — registration linkage, metadata validation and privilege-escalation assertions.
 - `tests/run_local.sh` — disposable PostgreSQL schema test runner.
 - `tests/run_rls_tests.sh` — disposable PostgreSQL RLS and moderation test runner.
+- `tests/run_auth_tests.sh` — disposable PostgreSQL Auth foundation test runner.
 
 ## Apply order
 
 1. Apply `migrations/001_initial_schema.sql`.
 2. Apply `seed/001_profile_statuses.sql`.
 3. Apply `migrations/002_rls_policies.sql` before exposing tables to application clients.
+4. Apply `migrations/003_auth_foundation.sql` to enable automatic profile creation for new signups.
 
 The migration expects the Supabase-managed `auth.users` table to exist. It does not create or replace that system table.
 
@@ -27,9 +31,44 @@ The local runners require PostgreSQL client/server tools and passwordless local 
 ```bash
 ./supabase/tests/run_local.sh
 ./supabase/tests/run_rls_tests.sh
+./supabase/tests/run_auth_tests.sh
 ```
 
 Each runner creates a disposable database, adds a minimal Supabase Auth fixture, applies the relevant migrations and seed, executes assertions, and removes the database.
+
+## Auth signup contract
+
+New signups must send the following Supabase `options.data` metadata:
+
+```json
+{
+  "full_name": "User name",
+  "role": "caregiver",
+  "phone": "+70000000000"
+}
+```
+
+- `full_name` is required and must be non-empty;
+- `role` is required and accepts only `caregiver` or `client`;
+- `phone` is optional; `auth.users.phone` is used as a fallback;
+- `admin` can never be selected through signup metadata;
+- a protected `auth.users` trigger creates `public.profiles` atomically with the same UUID;
+- changing `raw_user_meta_data` later does not change the application role;
+- existing auth users are not backfilled automatically because their intended role and full name cannot be safely guessed.
+
+Example Flutter/Supabase call:
+
+```dart
+await supabase.auth.signUp(
+  email: email,
+  password: password,
+  data: {
+    'full_name': fullName,
+    'role': selectedRole, // caregiver or client
+    if (phone.isNotEmpty) 'phone': phone,
+  },
+);
+```
 
 ## RLS and status transitions
 
@@ -68,4 +107,4 @@ For the first page, omit the cursor condition. The `id` tie-breaker prevents dup
 
 ## Scope boundary
 
-This database layer now includes the initial schema and RLS foundation. Flutter UI, Supabase Storage policies, notifications and multi-role accounts remain outside this scope.
+This database layer now includes the initial schema, RLS foundation and automatic Auth-to-profile registration. Flutter UI, hosted Supabase project provisioning, email templates, Storage policies, notifications and multi-role accounts remain outside this scope.
