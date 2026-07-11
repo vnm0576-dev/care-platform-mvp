@@ -21,6 +21,7 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
   final _descriptionController = TextEditingController();
 
   bool _isSaving = false;
+  CaregiverProfileRecord? _record;
 
   @override
   void dispose() {
@@ -38,7 +39,7 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
 
     setState(() => _isSaving = true);
     try {
-      await widget.gateway.saveDraft(
+      final record = await widget.gateway.saveDraft(
         draft: CaregiverProfileDraft(
           fullName: _fullNameController.text,
           city: _cityController.text,
@@ -61,6 +62,7 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
         ),
       );
       if (!mounted) return;
+      setState(() => _record = record);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Черновик сохранён')));
@@ -68,6 +70,33 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Не удалось сохранить черновик: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _submitForReview() async {
+    final record = _record;
+    if (record == null) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await widget.gateway.submitForReview(record.id);
+      if (!mounted) return;
+      setState(
+        () => _record = CaregiverProfileRecord(
+          id: record.id,
+          status: CaregiverProfileStatus.pendingReview,
+        ),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Анкета отправлена на модерацию')),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не удалось отправить анкету: $error')),
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -116,6 +145,13 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
                 onPressed: _isSaving ? null : _saveDraft,
                 child: Text(_isSaving ? 'Сохранение…' : 'Сохранить черновик'),
               ),
+              if (_record?.status == CaregiverProfileStatus.draft) ...[
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: _isSaving ? null : _submitForReview,
+                  child: const Text('Отправить на модерацию'),
+                ),
+              ],
             ],
           ),
         ),

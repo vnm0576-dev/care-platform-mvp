@@ -51,11 +51,25 @@ void main() {
     expect(gateway.savedDraft?.schedule, 'Дневные и ночные смены');
     expect(gateway.savedDraft?.description, 'Спокойно организую уход и быт.');
     expect(find.text('Черновик сохранён'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    final submitButton = find.text(
+      'Отправить на модерацию',
+      skipOffstage: false,
+    );
+    expect(submitButton, findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -240));
+    await tester.pumpAndSettle();
+    await tester.tap(submitButton);
+    await tester.pumpAndSettle();
+
+    expect(gateway.submittedProfileId, 'caregiver-profile-1');
+    expect(find.text('Анкета отправлена на модерацию'), findsOneWidget);
   });
 }
 
 class _FakeCaregiverProfileGateway implements CaregiverProfileGateway {
   CaregiverProfileDraft? savedDraft;
+  String? submittedProfileId;
 
   @override
   Future<CaregiverProfileRecord?> loadOwnProfile() async => null;
@@ -73,5 +87,7 @@ class _FakeCaregiverProfileGateway implements CaregiverProfileGateway {
   }
 
   @override
-  Future<void> submitForReview(String caregiverProfileId) async {}
+  Future<void> submitForReview(String caregiverProfileId) async {
+    submittedProfileId = caregiverProfileId;
+  }
 }
