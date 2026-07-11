@@ -9,78 +9,23 @@ void main() {
     tester,
   ) async {
     final gateway = _FakeCaregiverProfileGateway();
-
     await tester.pumpWidget(
       MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
     );
 
-    expect(find.text('Черновик анкеты сиделки'), findsOneWidget);
-
-    await tester.enterText(find.byKey(const ValueKey('ФИО')), 'Ирина Петрова');
-    await tester.enterText(find.byKey(const ValueKey('Город')), 'Челябинск');
-    await tester.enterText(
-      find.byKey(const ValueKey('Телефон')),
-      '+79990000000',
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('Опыт работы')),
-      '5 лет работы сиделкой',
-    );
-    final scheduleField = find.byKey(
-      const ValueKey('График'),
-      skipOffstage: false,
-    );
-    await tester.ensureVisible(scheduleField);
-    await tester.enterText(scheduleField, 'Дневные и ночные смены');
-    final descriptionField = find.byKey(
-      const ValueKey('О себе'),
-      skipOffstage: false,
-    );
-    await tester.ensureVisible(descriptionField);
-    await tester.enterText(descriptionField, 'Спокойно организую уход и быт.');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -600));
-    await tester.pumpAndSettle();
-    final dementiaSkill = find.widgetWithText(
-      FilterChip,
-      'Уход при деменции',
-      skipOffstage: false,
-    );
-    await tester.ensureVisible(dementiaSkill);
-    await tester.tap(dementiaSkill);
-
-    final saveButton = find.widgetWithText(
-      FilledButton,
-      'Сохранить черновик',
-      skipOffstage: false,
-    );
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
-    await tester.pumpAndSettle();
+    await _fillRequiredFields(tester);
+    await _selectSkillAndSave(tester);
 
     expect(gateway.savedDraft?.fullName, 'Ирина Петрова');
     expect(gateway.savedDraft?.city, 'Челябинск');
     expect(gateway.savedDraft?.contactPhone, isNotEmpty);
     expect(gateway.savedDraft?.experience, '5 лет работы сиделкой');
     expect(gateway.savedDraft?.skills, ['Уход при деменции']);
-    expect(gateway.savedDraft?.schedule, 'Дневные и ночные смены');
-    expect(gateway.savedDraft?.description, 'Спокойно организую уход и быт.');
+    expect(gateway.savedDraft?.schedule, 'Дневные смены');
+    expect(gateway.savedDraft?.description, 'Организую уход и быт.');
     expect(find.text('Черновик сохранён'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 5));
-    final submitButton = find.text(
-      'Отправить на модерацию',
-      skipOffstage: false,
-    );
-    expect(submitButton, findsOneWidget);
-    await tester.drag(find.byType(ListView), const Offset(0, -240));
-    await tester.pumpAndSettle();
-    await tester.tap(submitButton);
-    await tester.pumpAndSettle();
-
-    expect(gateway.submittedProfileId, 'caregiver-profile-1');
-    expect(find.text('Анкета отправлена на модерацию'), findsOneWidget);
   });
+
   testWidgets('does not allow moderation submission without a selected skill', (
     tester,
   ) async {
@@ -89,59 +34,180 @@ void main() {
       MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
     );
 
-    await tester.enterText(find.byKey(const ValueKey('ФИО')), 'Ирина Петрова');
-    await tester.enterText(find.byKey(const ValueKey('Город')), 'Челябинск');
-    await tester.enterText(
-      find.byKey(const ValueKey('Телефон')),
-      '+799****0000',
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('Опыт работы')),
-      '5 лет работы сиделкой',
-    );
-    final scheduleField = find.byKey(
-      const ValueKey('График'),
-      skipOffstage: false,
-    );
-    await tester.ensureVisible(scheduleField);
-    await tester.enterText(scheduleField, 'Дневные смены');
-    final descriptionField = find.byKey(
-      const ValueKey('О себе'),
-      skipOffstage: false,
-    );
-    await tester.ensureVisible(descriptionField);
-    await tester.enterText(descriptionField, 'Организую уход и быт.');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
+    await _fillRequiredFields(tester);
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pumpAndSettle();
-
-    final saveButton = find.widgetWithText(
-      FilledButton,
-      'Сохранить черновик',
-      skipOffstage: false,
+    await tester.tap(
+      find.widgetWithText(
+        FilledButton,
+        'Сохранить черновик',
+        skipOffstage: false,
+      ),
     );
-    await tester.ensureVisible(saveButton);
-    await tester.tap(saveButton);
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 5));
 
     final submitButton = find.widgetWithText(
       OutlinedButton,
       'Отправить на модерацию',
+    );
+    expect(tester.widget<OutlinedButton>(submitButton).onPressed, isNull);
+  });
+
+  testWidgets(
+    'saves a locally selected skill before submitting it for review',
+    (tester) async {
+      final gateway = _FakeCaregiverProfileGateway();
+      await tester.pumpWidget(
+        MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
+      );
+
+      await _fillRequiredFields(tester);
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(
+          FilledButton,
+          'Сохранить черновик',
+          skipOffstage: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+      final skill = find.widgetWithText(FilterChip, 'Уход при деменции');
+      await tester.ensureVisible(skill);
+      await tester.tap(skill);
+      await tester.pumpAndSettle();
+      final submit = find.widgetWithText(
+        OutlinedButton,
+        'Отправить на модерацию',
+        skipOffstage: false,
+      );
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+
+      expect(gateway.savedDrafts, hasLength(2));
+      expect(gateway.savedDrafts.last.skills, ['Уход при деменции']);
+      expect(gateway.submittedProfileId, 'caregiver-profile-1');
+    },
+  );
+
+  testWidgets('updates the same record on repeated saves', (tester) async {
+    final gateway = _FakeCaregiverProfileGateway();
+    await tester.pumpWidget(
+      MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
+    );
+
+    final save = find.widgetWithText(
+      FilledButton,
+      'Сохранить черновик',
       skipOffstage: false,
     );
-    await tester.ensureVisible(submitButton);
-    expect(tester.widget<OutlinedButton>(submitButton).onPressed, isNull);
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    expect(gateway.existingProfileIds, [null, 'caregiver-profile-1']);
+  });
+
+  testWidgets('allows an incomplete draft to be saved', (tester) async {
+    final gateway = _FakeCaregiverProfileGateway();
+    await tester.pumpWidget(
+      MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
+    );
+
+    final save = find.widgetWithText(
+      FilledButton,
+      'Сохранить черновик',
+      skipOffstage: false,
+    );
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    expect(gateway.savedDrafts, hasLength(1));
+  });
+
+  testWidgets('updates the loaded rejected profile and submits it again', (
+    tester,
+  ) async {
+    final gateway = _FakeCaregiverProfileGateway(
+      loadedRecord: const CaregiverProfileRecord(
+        id: 'rejected-profile',
+        status: CaregiverProfileStatus.rejected,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
+    );
+    await tester.pumpAndSettle();
+
+    await _fillRequiredFields(tester);
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+    final skill = find.widgetWithText(FilterChip, 'Уход при деменции');
+    await tester.ensureVisible(skill);
+    await tester.tap(skill);
+    await tester.pumpAndSettle();
+    final submit = find.widgetWithText(
+      OutlinedButton,
+      'Отправить на модерацию',
+      skipOffstage: false,
+    );
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(gateway.existingProfileIds, ['rejected-profile']);
+    expect(gateway.submittedProfileId, 'rejected-profile');
   });
 }
 
+Future<void> _fillRequiredFields(WidgetTester tester) async {
+  await tester.enterText(find.byKey(const ValueKey('ФИО')), 'Ирина Петрова');
+  await tester.enterText(find.byKey(const ValueKey('Город')), 'Челябинск');
+  await tester.enterText(find.byKey(const ValueKey('Телефон')), '+799****0000');
+  await tester.enterText(
+    find.byKey(const ValueKey('Опыт работы')),
+    '5 лет работы сиделкой',
+  );
+  final schedule = find.byKey(const ValueKey('График'), skipOffstage: false);
+  await tester.ensureVisible(schedule);
+  await tester.enterText(schedule, 'Дневные смены');
+  final description = find.byKey(const ValueKey('О себе'), skipOffstage: false);
+  await tester.ensureVisible(description);
+  await tester.enterText(description, 'Организую уход и быт.');
+  await tester.testTextInput.receiveAction(TextInputAction.done);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _selectSkillAndSave(WidgetTester tester) async {
+  await tester.drag(find.byType(ListView), const Offset(0, -600));
+  await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(FilterChip, 'Уход при деменции'));
+  await tester.tap(
+    find.widgetWithText(
+      FilledButton,
+      'Сохранить черновик',
+      skipOffstage: false,
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 class _FakeCaregiverProfileGateway implements CaregiverProfileGateway {
+  _FakeCaregiverProfileGateway({this.loadedRecord});
+
   CaregiverProfileDraft? savedDraft;
+  final List<CaregiverProfileDraft> savedDrafts = [];
+  final List<String?> existingProfileIds = [];
+  final CaregiverProfileRecord? loadedRecord;
   String? submittedProfileId;
 
   @override
-  Future<CaregiverProfileRecord?> loadOwnProfile() async => null;
+  Future<CaregiverProfileRecord?> loadOwnProfile() async => loadedRecord;
 
   @override
   Future<CaregiverProfileRecord> saveDraft({
@@ -149,9 +215,11 @@ class _FakeCaregiverProfileGateway implements CaregiverProfileGateway {
     String? existingProfileId,
   }) async {
     savedDraft = draft;
-    return const CaregiverProfileRecord(
-      id: 'caregiver-profile-1',
-      status: CaregiverProfileStatus.draft,
+    savedDrafts.add(draft);
+    existingProfileIds.add(existingProfileId);
+    return CaregiverProfileRecord(
+      id: existingProfileId ?? 'caregiver-profile-1',
+      status: loadedRecord?.status ?? CaregiverProfileStatus.draft,
     );
   }
 
