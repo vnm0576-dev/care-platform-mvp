@@ -29,4 +29,11 @@ void main() {
 
     expect(request.metadata, {'full_name': 'Сергей Иванов', 'role': 'client'});
   });
+  test(
+    'maps an existing administrator role but does not make it registrable',
+    () {
+      expect(AppRole.fromDatabaseValue('admin'), AppRole.admin);
+      expect(AppRole.registrable, [AppRole.caregiver, AppRole.client]);
+    },
+  );
 }

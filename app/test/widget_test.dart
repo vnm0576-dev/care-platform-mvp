@@ -166,6 +166,23 @@ void main() {
     expect(find.text('Найти сиделку'), findsOneWidget);
     expect(find.text('Заявка на подбор сиделки'), findsNothing);
   });
+  testWidgets('opens a safe holding screen for the administrator route', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: _FakeAuthGateway(),
+      ),
+    );
+
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .pushNamed(AppRoutes.admin);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Раздел модерации готовится'), findsOneWidget);
+  });
 }
 
 class _FakeCaregiverSearchGateway implements CaregiverSearchGateway {

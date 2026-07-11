@@ -65,6 +65,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       final route = switch (_role) {
         AppRole.caregiver => AppRoutes.caregiver,
         AppRole.client => AppRoutes.client,
+        AppRole.admin => AppRoutes.admin,
       };
       await Navigator.pushReplacementNamed(context, route);
     } on Object catch (_) {

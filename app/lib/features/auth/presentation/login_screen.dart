@@ -43,6 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final route = switch (role) {
         AppRole.caregiver => AppRoutes.caregiver,
         AppRole.client => AppRoutes.client,
+        AppRole.admin => AppRoutes.admin,
       };
       await Navigator.pushReplacementNamed(context, route);
     } on Object catch (_) {

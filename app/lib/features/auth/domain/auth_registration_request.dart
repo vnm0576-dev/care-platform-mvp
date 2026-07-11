@@ -1,15 +1,19 @@
 enum AppRole {
   caregiver('caregiver'),
-  client('client');
+  client('client'),
+  admin('admin');
 
   const AppRole(this.databaseValue);
 
   final String databaseValue;
 
+  static const registrable = [AppRole.caregiver, AppRole.client];
+
   static AppRole fromDatabaseValue(String value) {
     return switch (value) {
       'caregiver' => AppRole.caregiver,
       'client' => AppRole.client,
+      'admin' => AppRole.admin,
       _ => throw ArgumentError.value(value, 'value', 'Unsupported app role'),
     };
   }
