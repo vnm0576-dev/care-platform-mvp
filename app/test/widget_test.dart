@@ -2,6 +2,9 @@ import 'package:care_platform_app/app.dart';
 import 'package:care_platform_app/core/config/app_config.dart';
 import 'package:care_platform_app/features/auth/domain/auth_gateway.dart';
 import 'package:care_platform_app/features/auth/domain/auth_registration_request.dart';
+import 'package:care_platform_app/features/client/domain/client_request.dart';
+import 'package:care_platform_app/features/client/domain/client_request_gateway.dart';
+import 'package:care_platform_app/navigation/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -119,6 +122,31 @@ void main() {
       'phone': '+79990000000',
     });
   });
+  testWidgets('opens the client request instead of the placeholder route', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: _FakeAuthGateway(),
+        clientRequestGateway: _FakeClientRequestGateway(),
+      ),
+    );
+
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .pushNamed(AppRoutes.client);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Заявка на подбор сиделки'), findsOneWidget);
+    expect(find.text('Раздел клиента готов к реализации.'), findsNothing);
+  });
+}
+
+class _FakeClientRequestGateway implements ClientRequestGateway {
+  @override
+  Future<ClientRequestRecord> create(ClientRequestDraft request) async =>
+      const ClientRequestRecord(id: 'request-1');
 }
 
 class _FakeAuthGateway implements AuthGateway {
