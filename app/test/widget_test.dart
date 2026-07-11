@@ -4,6 +4,8 @@ import 'package:care_platform_app/features/auth/domain/auth_gateway.dart';
 import 'package:care_platform_app/features/auth/domain/auth_registration_request.dart';
 import 'package:care_platform_app/features/caregiver/domain/caregiver_profile.dart';
 import 'package:care_platform_app/features/caregiver/domain/caregiver_profile_gateway.dart';
+import 'package:care_platform_app/features/client/domain/caregiver_search.dart';
+import 'package:care_platform_app/features/client/domain/caregiver_search_gateway.dart';
 import 'package:care_platform_app/features/client/domain/client_request.dart';
 import 'package:care_platform_app/features/client/domain/client_request_gateway.dart';
 import 'package:care_platform_app/navigation/app_routes.dart';
@@ -151,6 +153,7 @@ void main() {
         config: configuredAppConfig,
         authGateway: _FakeAuthGateway(),
         clientRequestGateway: _FakeClientRequestGateway(),
+        caregiverSearchGateway: _FakeCaregiverSearchGateway(),
       ),
     );
 
@@ -159,9 +162,19 @@ void main() {
         .pushNamed(AppRoutes.client);
     await tester.pumpAndSettle();
 
-    expect(find.text('Заявка на подбор сиделки'), findsOneWidget);
-    expect(find.text('Раздел клиента готов к реализации.'), findsNothing);
+    expect(find.text('Поиск сиделки'), findsOneWidget);
+    expect(find.text('Найти сиделку'), findsOneWidget);
+    expect(find.text('Заявка на подбор сиделки'), findsNothing);
   });
+}
+
+class _FakeCaregiverSearchGateway implements CaregiverSearchGateway {
+  @override
+  Future<CaregiverSearchPage> loadApproved({
+    required String city,
+    required int page,
+    required int pageSize,
+  }) async => const CaregiverSearchPage(items: [], hasMore: false);
 }
 
 class _FakeClientRequestGateway implements ClientRequestGateway {
