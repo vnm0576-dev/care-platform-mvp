@@ -43,12 +43,10 @@ class CarePlatformApp extends StatelessWidget {
         ),
         AppRoutes.login: (_) => LoginScreen(authGateway: authGateway),
         AppRoutes.register: (_) => RegistrationScreen(authGateway: authGateway),
-        AppRoutes.caregiver: (_) => CaregiverProfileScreen(
-          gateway: caregiverGateway,
-        ),
-        AppRoutes.client: (_) => ClientRequestScreen(
-          gateway: clientRequestGateway,
-        ),
+        AppRoutes.caregiver: (_) =>
+            CaregiverProfileScreen(gateway: caregiverGateway),
+        AppRoutes.client: (_) =>
+            ClientRequestScreen(gateway: clientRequestGateway),
       },
     );
   }
