@@ -7,8 +7,11 @@ import 'package:care_platform_app/features/auth/presentation/welcome_screen.dart
 import 'package:care_platform_app/features/caregiver/data/unavailable_caregiver_profile_gateway.dart';
 import 'package:care_platform_app/features/caregiver/domain/caregiver_profile_gateway.dart';
 import 'package:care_platform_app/features/caregiver/presentation/caregiver_profile_screen.dart';
+import 'package:care_platform_app/features/client/data/unavailable_caregiver_search_gateway.dart';
 import 'package:care_platform_app/features/client/data/unavailable_client_request_gateway.dart';
+import 'package:care_platform_app/features/client/domain/caregiver_search_gateway.dart';
 import 'package:care_platform_app/features/client/domain/client_request_gateway.dart';
+import 'package:care_platform_app/features/client/presentation/client_caregiver_search_screen.dart';
 import 'package:care_platform_app/features/client/presentation/client_request_screen.dart';
 import 'package:care_platform_app/navigation/app_routes.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +21,7 @@ class CarePlatformApp extends StatelessWidget {
     required this.config,
     required this.authGateway,
     this.caregiverGateway = const UnavailableCaregiverProfileGateway(),
+    this.caregiverSearchGateway = const UnavailableCaregiverSearchGateway(),
     this.clientRequestGateway = const UnavailableClientRequestGateway(),
     this.initializationError,
     super.key,
@@ -26,6 +30,7 @@ class CarePlatformApp extends StatelessWidget {
   final AppConfig config;
   final AuthGateway authGateway;
   final CaregiverProfileGateway caregiverGateway;
+  final CaregiverSearchGateway caregiverSearchGateway;
   final ClientRequestGateway clientRequestGateway;
   final Object? initializationError;
 
@@ -45,8 +50,15 @@ class CarePlatformApp extends StatelessWidget {
         AppRoutes.register: (_) => RegistrationScreen(authGateway: authGateway),
         AppRoutes.caregiver: (_) =>
             CaregiverProfileScreen(gateway: caregiverGateway),
-        AppRoutes.client: (_) =>
-            ClientRequestScreen(gateway: clientRequestGateway),
+        AppRoutes.client: (context) => ClientCaregiverSearchScreen(
+          gateway: caregiverSearchGateway,
+          onLeaveRequest: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  ClientRequestScreen(gateway: clientRequestGateway),
+            ),
+          ),
+        ),
       },
     );
   }

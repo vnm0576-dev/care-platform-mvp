@@ -7,8 +7,11 @@ import 'package:care_platform_app/features/auth/domain/auth_gateway.dart';
 import 'package:care_platform_app/features/caregiver/data/supabase_caregiver_profile_gateway.dart';
 import 'package:care_platform_app/features/caregiver/data/unavailable_caregiver_profile_gateway.dart';
 import 'package:care_platform_app/features/caregiver/domain/caregiver_profile_gateway.dart';
+import 'package:care_platform_app/features/client/data/supabase_caregiver_search_gateway.dart';
 import 'package:care_platform_app/features/client/data/supabase_client_request_gateway.dart';
+import 'package:care_platform_app/features/client/data/unavailable_caregiver_search_gateway.dart';
 import 'package:care_platform_app/features/client/data/unavailable_client_request_gateway.dart';
+import 'package:care_platform_app/features/client/domain/caregiver_search_gateway.dart';
 import 'package:care_platform_app/features/client/domain/client_request_gateway.dart';
 import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -33,6 +36,10 @@ Future<void> main() async {
       config.isConfigured && initializationError == null
       ? SupabaseCaregiverProfileGateway(Supabase.instance.client)
       : const UnavailableCaregiverProfileGateway();
+  final CaregiverSearchGateway caregiverSearchGateway =
+      config.isConfigured && initializationError == null
+      ? SupabaseCaregiverSearchGateway(Supabase.instance.client)
+      : const UnavailableCaregiverSearchGateway();
   final ClientRequestGateway clientRequestGateway =
       config.isConfigured && initializationError == null
       ? SupabaseClientRequestGateway(Supabase.instance.client)
@@ -43,6 +50,7 @@ Future<void> main() async {
       config: config,
       authGateway: authGateway,
       caregiverGateway: caregiverGateway,
+      caregiverSearchGateway: caregiverSearchGateway,
       clientRequestGateway: clientRequestGateway,
       initializationError: initializationError,
     ),
