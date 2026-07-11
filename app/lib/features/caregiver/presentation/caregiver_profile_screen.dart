@@ -12,7 +12,6 @@ class CaregiverProfileScreen extends StatefulWidget {
 }
 
 class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
   final _cityController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -34,6 +33,21 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
   CaregiverProfileRecord? _record;
 
   @override
+  void initState() {
+    super.initState();
+    _loadExistingProfile();
+  }
+
+  Future<void> _loadExistingProfile() async {
+    try {
+      final record = await widget.gateway.loadOwnProfile();
+      if (mounted) setState(() => _record = record);
+    } on Object {
+      // A draft can still be created if the existing profile is unavailable.
+    }
+  }
+
+  @override
   void dispose() {
     _fullNameController.dispose();
     _cityController.dispose();
@@ -44,38 +58,48 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _saveDraft() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  CaregiverProfileDraft _currentDraft() => CaregiverProfileDraft(
+    fullName: _fullNameController.text,
+    city: _cityController.text,
+    district: '',
+    contactPhone: _phoneController.text,
+    experience: _experienceController.text,
+    education: '',
+    certificates: const [],
+    skills: _skills.toList(growable: false),
+    schedule: _scheduleController.text,
+    description: _descriptionController.text,
+    desiredPayment: null,
+    readyForLiveIn: false,
+    readyForNightShifts: false,
+    dementiaExperience: false,
+    bedriddenExperience: false,
+    strokeExperience: false,
+    heartAttackExperience: false,
+    traumaExperience: false,
+  );
 
-    setState(() => _isSaving = true);
-    try {
-      final record = await widget.gateway.saveDraft(
-        draft: CaregiverProfileDraft(
-          fullName: _fullNameController.text,
-          city: _cityController.text,
-          district: '',
-          contactPhone: _phoneController.text,
-          experience: _experienceController.text,
-          education: '',
-          certificates: const [],
-          skills: _skills.toList(growable: false),
-          schedule: _scheduleController.text,
-          description: _descriptionController.text,
-          desiredPayment: null,
-          readyForLiveIn: false,
-          readyForNightShifts: false,
-          dementiaExperience: false,
-          bedriddenExperience: false,
-          strokeExperience: false,
-          heartAttackExperience: false,
-          traumaExperience: false,
-        ),
-      );
-      if (!mounted) return;
-      setState(() => _record = record);
+  Future<CaregiverProfileRecord?> _persistCurrentDraft({
+    bool showSuccess = true,
+  }) async {
+    final record = await widget.gateway.saveDraft(
+      draft: _currentDraft(),
+      existingProfileId: _record?.id,
+    );
+    if (!mounted) return null;
+    setState(() => _record = record);
+    if (showSuccess) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Черновик сохранён')));
+    }
+    return record;
+  }
+
+  Future<void> _saveDraft() async {
+    setState(() => _isSaving = true);
+    try {
+      await _persistCurrentDraft();
     } on Object catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -87,11 +111,12 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
   }
 
   Future<void> _submitForReview() async {
-    final record = _record;
-    if (record == null) return;
-
     setState(() => _isSaving = true);
     try {
+      // Persist first: the protected RPC must validate the same skills that
+      // the caregiver currently sees, rather than an earlier local snapshot.
+      final record = await _persistCurrentDraft(showSuccess: false);
+      if (record == null) return;
       await widget.gateway.submitForReview(record.id);
       if (!mounted) return;
       setState(
@@ -115,98 +140,104 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canSubmit =
+        _record?.status == CaregiverProfileStatus.draft ||
+        _record?.status == CaregiverProfileStatus.rejected;
     return Scaffold(
       appBar: AppBar(title: const Text('Анкета сиделки')),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              Text(
-                'Черновик анкеты сиделки',
-                style: Theme.of(context).textTheme.headlineSmall,
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FilledButton(
+              onPressed: _isSaving ? null : _saveDraft,
+              child: Text(_isSaving ? 'Сохранение…' : 'Сохранить черновик'),
+            ),
+            if (canSubmit) ...[
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: _isSaving || _skills.isEmpty
+                    ? null
+                    : _submitForReview,
+                child: const Text('Отправить на модерацию'),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Заполни базовые сведения. Анкету можно сохранить и дополнить до отправки на модерацию.',
-              ),
-              const SizedBox(height: 24),
-              _requiredField(controller: _fullNameController, label: 'ФИО'),
-              _requiredField(controller: _cityController, label: 'Город'),
-              _requiredField(controller: _phoneController, label: 'Телефон'),
-              _requiredField(
-                controller: _experienceController,
-                label: 'Опыт работы',
-                maxLines: 3,
-              ),
-              _requiredField(
-                controller: _scheduleController,
-                label: 'График',
-                maxLines: 2,
-              ),
-              _requiredField(
-                controller: _descriptionController,
-                label: 'О себе',
-                maxLines: 4,
-              ),
-              const Text('Навыки'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _availableSkills
-                    .map((skill) {
-                      return FilterChip(
-                        label: Text(skill),
-                        selected: _skills.contains(skill),
-                        onSelected: (selected) {
-                          setState(() {
-                            if (selected) {
-                              _skills.add(skill);
-                            } else {
-                              _skills.remove(skill);
-                            }
-                          });
-                        },
-                      );
-                    })
-                    .toList(growable: false),
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _isSaving ? null : _saveDraft,
-                child: Text(_isSaving ? 'Сохранение…' : 'Сохранить черновик'),
-              ),
-              if (_record?.status == CaregiverProfileStatus.draft) ...[
-                const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: _isSaving || _skills.isEmpty
-                      ? null
-                      : _submitForReview,
-                  child: const Text('Отправить на модерацию'),
-                ),
-              ],
             ],
-          ),
+          ],
+        ),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            Text(
+              'Черновик анкеты сиделки',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Черновик можно сохранить неполным. Полнота проверяется при отправке на модерацию.',
+            ),
+            const SizedBox(height: 24),
+            _field(controller: _fullNameController, label: 'ФИО'),
+            _field(controller: _cityController, label: 'Город'),
+            _field(controller: _phoneController, label: 'Телефон'),
+            _field(
+              controller: _experienceController,
+              label: 'Опыт работы',
+              maxLines: 3,
+            ),
+            _field(
+              controller: _scheduleController,
+              label: 'График',
+              maxLines: 2,
+            ),
+            _field(
+              controller: _descriptionController,
+              label: 'О себе',
+              maxLines: 4,
+            ),
+            const Text('Навыки'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _availableSkills
+                  .map(
+                    (skill) => FilterChip(
+                      label: Text(skill),
+                      selected: _skills.contains(skill),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _skills.add(skill);
+                          } else {
+                            _skills.remove(skill);
+                          }
+                        });
+                      },
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+            const SizedBox(height: 16),
+          ],
         ),
       ),
     );
   }
 
-  Widget _requiredField({
+  Widget _field({
     required TextEditingController controller,
     required String label,
     int maxLines = 1,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
-    child: TextFormField(
+    child: TextField(
       key: ValueKey(label),
       controller: controller,
       maxLines: maxLines,
       decoration: InputDecoration(labelText: label),
-      validator: (value) =>
-          value == null || value.trim().isEmpty ? 'Поле обязательно' : null,
     ),
   );
 }
