@@ -6,4 +6,5 @@ class AppRoutes {
   static const register = '/register';
   static const caregiver = '/caregiver';
   static const client = '/client';
+  static const admin = '/admin';
 }

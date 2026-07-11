@@ -1,5 +1,6 @@
 import 'package:care_platform_app/core/config/app_config.dart';
 import 'package:care_platform_app/core/theme/app_theme.dart';
+import 'package:care_platform_app/features/admin/presentation/admin_holding_screen.dart';
 import 'package:care_platform_app/features/auth/domain/auth_gateway.dart';
 import 'package:care_platform_app/features/auth/presentation/login_screen.dart';
 import 'package:care_platform_app/features/auth/presentation/registration_screen.dart';
@@ -48,6 +49,7 @@ class CarePlatformApp extends StatelessWidget {
         ),
         AppRoutes.login: (_) => LoginScreen(authGateway: authGateway),
         AppRoutes.register: (_) => RegistrationScreen(authGateway: authGateway),
+        AppRoutes.admin: (_) => const AdminHoldingScreen(),
         AppRoutes.caregiver: (_) =>
             CaregiverProfileScreen(gateway: caregiverGateway),
         AppRoutes.client: (context) => ClientCaregiverSearchScreen(
