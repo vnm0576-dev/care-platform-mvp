@@ -5,7 +5,9 @@ import 'package:care_platform_app/features/auth/presentation/login_screen.dart';
 import 'package:care_platform_app/features/auth/presentation/registration_screen.dart';
 import 'package:care_platform_app/features/auth/presentation/welcome_screen.dart';
 import 'package:care_platform_app/features/caregiver/presentation/caregiver_placeholder_screen.dart';
-import 'package:care_platform_app/features/client/presentation/client_placeholder_screen.dart';
+import 'package:care_platform_app/features/client/data/unavailable_client_request_gateway.dart';
+import 'package:care_platform_app/features/client/domain/client_request_gateway.dart';
+import 'package:care_platform_app/features/client/presentation/client_request_screen.dart';
 import 'package:care_platform_app/navigation/app_routes.dart';
 import 'package:flutter/material.dart';
 
@@ -13,12 +15,14 @@ class CarePlatformApp extends StatelessWidget {
   const CarePlatformApp({
     required this.config,
     required this.authGateway,
+    this.clientRequestGateway = const UnavailableClientRequestGateway(),
     this.initializationError,
     super.key,
   });
 
   final AppConfig config;
   final AuthGateway authGateway;
+  final ClientRequestGateway clientRequestGateway;
   final Object? initializationError;
 
   @override
@@ -36,7 +40,8 @@ class CarePlatformApp extends StatelessWidget {
         AppRoutes.login: (_) => LoginScreen(authGateway: authGateway),
         AppRoutes.register: (_) => RegistrationScreen(authGateway: authGateway),
         AppRoutes.caregiver: (_) => const CaregiverPlaceholderScreen(),
-        AppRoutes.client: (_) => const ClientPlaceholderScreen(),
+        AppRoutes.client: (_) =>
+            ClientRequestScreen(gateway: clientRequestGateway),
       },
     );
   }
