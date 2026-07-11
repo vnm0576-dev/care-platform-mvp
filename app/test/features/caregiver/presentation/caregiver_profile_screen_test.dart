@@ -38,8 +38,23 @@ void main() {
     );
     await tester.ensureVisible(descriptionField);
     await tester.enterText(descriptionField, 'Спокойно организую уход и быт.');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+    final dementiaSkill = find.widgetWithText(
+      FilterChip,
+      'Уход при деменции',
+      skipOffstage: false,
+    );
+    await tester.ensureVisible(dementiaSkill);
+    await tester.tap(dementiaSkill);
 
-    final saveButton = find.text('Сохранить черновик', skipOffstage: false);
+    final saveButton = find.widgetWithText(
+      FilledButton,
+      'Сохранить черновик',
+      skipOffstage: false,
+    );
     await tester.ensureVisible(saveButton);
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
@@ -48,6 +63,7 @@ void main() {
     expect(gateway.savedDraft?.city, 'Челябинск');
     expect(gateway.savedDraft?.contactPhone, isNotEmpty);
     expect(gateway.savedDraft?.experience, '5 лет работы сиделкой');
+    expect(gateway.savedDraft?.skills, ['Уход при деменции']);
     expect(gateway.savedDraft?.schedule, 'Дневные и ночные смены');
     expect(gateway.savedDraft?.description, 'Спокойно организую уход и быт.');
     expect(find.text('Черновик сохранён'), findsOneWidget);
@@ -64,6 +80,59 @@ void main() {
 
     expect(gateway.submittedProfileId, 'caregiver-profile-1');
     expect(find.text('Анкета отправлена на модерацию'), findsOneWidget);
+  });
+  testWidgets('does not allow moderation submission without a selected skill', (
+    tester,
+  ) async {
+    final gateway = _FakeCaregiverProfileGateway();
+    await tester.pumpWidget(
+      MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
+    );
+
+    await tester.enterText(find.byKey(const ValueKey('ФИО')), 'Ирина Петрова');
+    await tester.enterText(find.byKey(const ValueKey('Город')), 'Челябинск');
+    await tester.enterText(
+      find.byKey(const ValueKey('Телефон')),
+      '+799****0000',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('Опыт работы')),
+      '5 лет работы сиделкой',
+    );
+    final scheduleField = find.byKey(
+      const ValueKey('График'),
+      skipOffstage: false,
+    );
+    await tester.ensureVisible(scheduleField);
+    await tester.enterText(scheduleField, 'Дневные смены');
+    final descriptionField = find.byKey(
+      const ValueKey('О себе'),
+      skipOffstage: false,
+    );
+    await tester.ensureVisible(descriptionField);
+    await tester.enterText(descriptionField, 'Организую уход и быт.');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+
+    final saveButton = find.widgetWithText(
+      FilledButton,
+      'Сохранить черновик',
+      skipOffstage: false,
+    );
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 5));
+
+    final submitButton = find.widgetWithText(
+      OutlinedButton,
+      'Отправить на модерацию',
+      skipOffstage: false,
+    );
+    await tester.ensureVisible(submitButton);
+    expect(tester.widget<OutlinedButton>(submitButton).onPressed, isNull);
   });
 }
 
