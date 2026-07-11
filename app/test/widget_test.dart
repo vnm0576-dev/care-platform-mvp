@@ -2,6 +2,8 @@ import 'package:care_platform_app/app.dart';
 import 'package:care_platform_app/core/config/app_config.dart';
 import 'package:care_platform_app/features/auth/domain/auth_gateway.dart';
 import 'package:care_platform_app/features/auth/domain/auth_registration_request.dart';
+import 'package:care_platform_app/features/caregiver/domain/caregiver_profile.dart';
+import 'package:care_platform_app/features/caregiver/domain/caregiver_profile_gateway.dart';
 import 'package:care_platform_app/features/client/domain/client_request.dart';
 import 'package:care_platform_app/features/client/domain/client_request_gateway.dart';
 import 'package:care_platform_app/navigation/app_routes.dart';
@@ -122,6 +124,25 @@ void main() {
       'phone': '+79990000000',
     });
   });
+  testWidgets('opens the caregiver draft instead of the placeholder route', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: _FakeAuthGateway(),
+        caregiverGateway: _FakeCaregiverProfileGateway(),
+      ),
+    );
+
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .pushNamed(AppRoutes.caregiver);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Черновик анкеты сиделки'), findsOneWidget);
+    expect(find.text('Раздел сиделки готов к реализации.'), findsNothing);
+  });
   testWidgets('opens the client request instead of the placeholder route', (
     tester,
   ) async {
@@ -147,6 +168,23 @@ class _FakeClientRequestGateway implements ClientRequestGateway {
   @override
   Future<ClientRequestRecord> create(ClientRequestDraft request) async =>
       const ClientRequestRecord(id: 'request-1');
+}
+
+class _FakeCaregiverProfileGateway implements CaregiverProfileGateway {
+  @override
+  Future<CaregiverProfileRecord?> loadOwnProfile() async => null;
+
+  @override
+  Future<CaregiverProfileRecord> saveDraft({
+    required CaregiverProfileDraft draft,
+    String? existingProfileId,
+  }) async => const CaregiverProfileRecord(
+    id: 'caregiver-profile-1',
+    status: CaregiverProfileStatus.draft,
+  );
+
+  @override
+  Future<void> submitForReview(String caregiverProfileId) async {}
 }
 
 class _FakeAuthGateway implements AuthGateway {
