@@ -19,6 +19,16 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
   final _experienceController = TextEditingController();
   final _scheduleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _skills = <String>{};
+
+  static const _availableSkills = [
+    'Уход при деменции',
+    'Уход за лежачим пациентом',
+    'Восстановление после инсульта',
+    'Контроль приёма лекарств',
+    'Ночные смены',
+    'Приготовление пищи',
+  ];
 
   bool _isSaving = false;
   CaregiverProfileRecord? _record;
@@ -48,7 +58,7 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
           experience: _experienceController.text,
           education: '',
           certificates: const [],
-          skills: const [],
+          skills: _skills.toList(growable: false),
           schedule: _scheduleController.text,
           description: _descriptionController.text,
           desiredPayment: null,
@@ -140,6 +150,29 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
                 label: 'О себе',
                 maxLines: 4,
               ),
+              const Text('Навыки'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _availableSkills
+                    .map((skill) {
+                      return FilterChip(
+                        label: Text(skill),
+                        selected: _skills.contains(skill),
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _skills.add(skill);
+                            } else {
+                              _skills.remove(skill);
+                            }
+                          });
+                        },
+                      );
+                    })
+                    .toList(growable: false),
+              ),
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: _isSaving ? null : _saveDraft,
@@ -148,7 +181,9 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
               if (_record?.status == CaregiverProfileStatus.draft) ...[
                 const SizedBox(height: 12),
                 OutlinedButton(
-                  onPressed: _isSaving ? null : _submitForReview,
+                  onPressed: _isSaving || _skills.isEmpty
+                      ? null
+                      : _submitForReview,
                   child: const Text('Отправить на модерацию'),
                 ),
               ],
