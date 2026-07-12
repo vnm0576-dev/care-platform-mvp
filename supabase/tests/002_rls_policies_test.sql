@@ -136,6 +136,14 @@ select tests.assert_true(
   ),
   'caregiver cannot see their own draft'
 );
+update public.caregiver_profiles
+set description = 'Edited eligible draft'
+where id = '10000000-0000-0000-0000-000000000202';
+select tests.assert_true(
+  (select description from public.caregiver_profiles
+   where id = '10000000-0000-0000-0000-000000000202') = 'Edited eligible draft',
+  'caregiver cannot edit their own draft'
+);
 select tests.assert_true(
   (select count(*) from public.client_requests) = 0,
   'caregiver saw client requests'
@@ -181,6 +189,94 @@ select tests.assert_true(
       and submitted_at is not null
   ),
   'owner submission did not set pending_review and submitted_at'
+);
+
+-- The owner may edit an eligible draft, but a stale client must not be able to
+-- mutate permitted content after an external status transition.
+reset role;
+update public.caregiver_profiles
+set
+  status = 'rejected',
+  rejection_reason = 'Needs clarification',
+  rejected_at = statement_timestamp()
+where id = '10000000-0000-0000-0000-000000000202';
+set role authenticated;
+update public.caregiver_profiles
+set description = 'Edited eligible rejected profile'
+where id = '10000000-0000-0000-0000-000000000202';
+select tests.assert_true(
+  (select description from public.caregiver_profiles
+   where id = '10000000-0000-0000-0000-000000000202') = 'Edited eligible rejected profile',
+  'caregiver cannot edit their own rejected profile'
+);
+reset role;
+update public.caregiver_profiles
+set
+  status = 'approved',
+  rejection_reason = null,
+  rejected_at = null,
+  approved_at = statement_timestamp()
+where id = '10000000-0000-0000-0000-000000000202';
+set role authenticated;
+do $$
+declare
+  v_updated integer;
+begin
+  update public.caregiver_profiles
+  set description = 'Stale client changed approved profile'
+  where id = '10000000-0000-0000-0000-000000000202';
+  get diagnostics v_updated = row_count;
+  if v_updated <> 0 then
+    raise exception 'owner updated approved caregiver profile';
+  end if;
+end;
+$$;
+reset role;
+update public.caregiver_profiles
+set
+  status = 'hidden',
+  hidden_reason = 'Moderation hold',
+  hidden_at = statement_timestamp()
+where id = '10000000-0000-0000-0000-000000000202';
+set role authenticated;
+do $$
+declare
+  v_updated integer;
+begin
+  update public.caregiver_profiles
+  set description = 'Stale client changed hidden profile'
+  where id = '10000000-0000-0000-0000-000000000202';
+  get diagnostics v_updated = row_count;
+  if v_updated <> 0 then
+    raise exception 'owner updated hidden caregiver profile';
+  end if;
+end;
+$$;
+reset role;
+update public.caregiver_profiles
+set
+  status = 'pending_review',
+  hidden_reason = null,
+  hidden_at = null
+where id = '10000000-0000-0000-0000-000000000202';
+set role authenticated;
+do $$
+declare
+  v_updated integer;
+begin
+  update public.caregiver_profiles
+  set description = 'Stale client changed pending profile'
+  where id = '10000000-0000-0000-0000-000000000202';
+  get diagnostics v_updated = row_count;
+  if v_updated <> 0 then
+    raise exception 'owner updated pending caregiver profile';
+  end if;
+end;
+$$;
+select tests.assert_true(
+  (select description from public.caregiver_profiles
+   where id = '10000000-0000-0000-0000-000000000202') = 'Edited eligible rejected profile',
+  'stale client changed caregiver profile content'
 );
 
 -- Ordinary user cannot moderate or write the audit log directly.
