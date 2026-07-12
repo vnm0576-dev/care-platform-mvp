@@ -124,6 +124,41 @@ begin
 end;
 $$;
 
+-- Approved profiles need meaningful skills, not merely non-empty array slots.
+do $$
+begin
+  begin
+    insert into public.caregiver_profiles (
+      profile_id, full_name, city, contact_phone, experience,
+      skills, schedule, description, status, approved_at
+    ) values (
+      '00000000-0000-0000-0000-000000000002',
+      'Test Caregiver', 'Chelyabinsk', '+700****0001', '5 years',
+      array[null::text], 'day shifts', 'Test approved profile',
+      'approved', clock_timestamp()
+    );
+    raise exception 'approved profile accepted a null skill';
+  exception
+    when check_violation then null;
+  end;
+
+  begin
+    insert into public.caregiver_profiles (
+      profile_id, full_name, city, contact_phone, experience,
+      skills, schedule, description, status, approved_at
+    ) values (
+      '00000000-0000-0000-0000-000000000002',
+      'Test Caregiver', 'Chelyabinsk', '+700****0001', '5 years',
+      array['   '], 'day shifts', 'Test approved profile',
+      'approved', clock_timestamp()
+    );
+    raise exception 'approved profile accepted a blank skill';
+  exception
+    when check_violation then null;
+  end;
+end;
+$$;
+
 insert into public.caregiver_profiles (
   profile_id, full_name, city, contact_phone, experience,
   skills, schedule, description, status, approved_at
