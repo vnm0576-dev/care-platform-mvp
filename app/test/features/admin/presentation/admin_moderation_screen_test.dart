@@ -16,6 +16,18 @@ void main() {
 
     expect(find.text('Ирина Петрова'), findsOneWidget);
     expect(find.text('Челябинск · 7 лет'), findsOneWidget);
+    expect(find.text('Телефон: +79990001122'), findsOneWidget);
+    expect(find.text('Навыки: Уход при деменции, ЛФК'), findsOneWidget);
+    expect(find.text('Сертификаты: Первая помощь'), findsOneWidget);
+    expect(find.text('Желаемая оплата: 2500'), findsOneWidget);
+    expect(find.text('С проживанием: Да'), findsOneWidget);
+    expect(find.text('Ночные смены: Да'), findsOneWidget);
+    expect(
+      find.text(
+        'Опыт: деменция — Да; лежачие пациенты — Да; инсульт — Да; инфаркт — Да; травмы — Да',
+      ),
+      findsOneWidget,
+    );
 
     await tester.enterText(
       find.byKey(const ValueKey('moderation-reason-profile-1')),
@@ -63,30 +75,98 @@ void main() {
     expect(gateway.loadCalls, 2);
     expect(find.text('Ирина Петрова'), findsOneWidget);
   });
+
+  testWidgets('loads the next moderation page on demand', (tester) async {
+    final gateway = _FakeAdminModerationGateway(
+      pages: const [
+        PendingCaregiverProfilesPage(items: [_firstProfile], hasMore: true),
+        PendingCaregiverProfilesPage(items: [_secondProfile], hasMore: false),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: AdminModerationScreen(gateway: gateway)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Загрузить ещё'), findsOneWidget);
+    await tester.tap(find.text('Загрузить ещё'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.pageRequests, [
+      (page: 0, pageSize: 20),
+      (page: 1, pageSize: 20),
+    ]);
+    expect(find.text('Ирина Петрова'), findsOneWidget);
+    expect(find.text('Ольга Смирнова'), findsOneWidget);
+  });
+
+  testWidgets(
+    'reloads the first page after moderation instead of claiming empty',
+    (tester) async {
+      final gateway = _FakeAdminModerationGateway(
+        pages: [
+          const PendingCaregiverProfilesPage(
+            items: [_firstProfile],
+            hasMore: true,
+          ),
+          const PendingCaregiverProfilesPage(
+            items: [_secondProfile],
+            hasMore: false,
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: AdminModerationScreen(gateway: gateway)),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const ValueKey('moderation-reason-profile-1')),
+        'Анкета проверена',
+      );
+      await tester.tap(find.byKey(const ValueKey('approve-profile-1')));
+      await tester.pumpAndSettle();
+
+      expect(gateway.loadCalls, 2);
+      expect(gateway.pageRequests, [
+        (page: 0, pageSize: 20),
+        (page: 0, pageSize: 20),
+      ]);
+      expect(find.text('Ольга Смирнова'), findsOneWidget);
+      expect(find.text('Анкеты ожидают модерации'), findsNothing);
+    },
+  );
 }
 
 class _FakeAdminModerationGateway implements AdminModerationGateway {
-  _FakeAdminModerationGateway({this.failFirstLoad = false});
+  _FakeAdminModerationGateway({this.failFirstLoad = false, this._pages});
 
   final bool failFirstLoad;
+  final List<PendingCaregiverProfilesPage>? _pages;
+  bool _moderated = false;
   int loadCalls = 0;
+  final List<({int page, int pageSize})> pageRequests = [];
   final List<({String profileId, ModerationStatus status, String reason})>
   moderationCalls = [];
 
   @override
-  Future<List<PendingCaregiverProfile>> loadPending() async {
+  Future<PendingCaregiverProfilesPage> loadPending({
+    required int page,
+    required int pageSize,
+  }) async {
     loadCalls++;
+    pageRequests.add((page: page, pageSize: pageSize));
     if (failFirstLoad && loadCalls == 1) throw StateError('offline');
-    return const [
-      PendingCaregiverProfile(
-        id: 'profile-1',
-        fullName: 'Ирина Петрова',
-        city: 'Челябинск',
-        experience: '7 лет',
-        schedule: 'Дневные смены',
-        description: 'Опыт ухода при деменции',
-      ),
-    ];
+    if (_pages case final pages?) {
+      final index = loadCalls - 1;
+      return pages[index < pages.length ? index : pages.length - 1];
+    }
+    return _moderated
+        ? const PendingCaregiverProfilesPage(items: [], hasMore: false)
+        : const PendingCaregiverProfilesPage(
+            items: [_firstProfile],
+            hasMore: false,
+          );
   }
 
   @override
@@ -96,6 +176,7 @@ class _FakeAdminModerationGateway implements AdminModerationGateway {
     required String reason,
     String? comment,
   }) async {
+    _moderated = true;
     moderationCalls.add((
       profileId: caregiverProfileId,
       status: newStatus,
@@ -103,3 +184,43 @@ class _FakeAdminModerationGateway implements AdminModerationGateway {
     ));
   }
 }
+
+const _firstProfile = PendingCaregiverProfile(
+  id: 'profile-1',
+  fullName: 'Ирина Петрова',
+  city: 'Челябинск',
+  contactPhone: '+79990001122',
+  experience: '7 лет',
+  certificates: ['Первая помощь'],
+  skills: ['Уход при деменции', 'ЛФК'],
+  schedule: 'Дневные смены',
+  description: 'Опыт ухода при деменции',
+  desiredPayment: 2500,
+  readyForLiveIn: true,
+  readyForNightShifts: true,
+  dementiaExperience: true,
+  bedriddenExperience: true,
+  strokeExperience: true,
+  heartAttackExperience: true,
+  traumaExperience: true,
+);
+
+const _secondProfile = PendingCaregiverProfile(
+  id: 'profile-2',
+  fullName: 'Ольга Смирнова',
+  city: 'Миасс',
+  contactPhone: '+79990002233',
+  experience: '5 лет',
+  certificates: [],
+  skills: ['Уход'],
+  schedule: 'Сутки через двое',
+  description: 'Опыт работы в семье',
+  desiredPayment: null,
+  readyForLiveIn: false,
+  readyForNightShifts: false,
+  dementiaExperience: false,
+  bedriddenExperience: false,
+  strokeExperience: false,
+  heartAttackExperience: false,
+  traumaExperience: false,
+);

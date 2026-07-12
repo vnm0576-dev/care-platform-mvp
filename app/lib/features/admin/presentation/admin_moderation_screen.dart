@@ -12,16 +12,21 @@ class AdminModerationScreen extends StatefulWidget {
 }
 
 class _AdminModerationScreenState extends State<AdminModerationScreen> {
+  static const _pageSize = 20;
+
   final Map<String, TextEditingController> _reasonControllers = {};
   List<PendingCaregiverProfile> _profiles = const [];
   final Set<String> _moderatingIds = {};
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = false;
+  int _nextPage = 0;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadPending();
+    _loadPending(reset: true);
   }
 
   @override
@@ -32,20 +37,42 @@ class _AdminModerationScreenState extends State<AdminModerationScreen> {
     super.dispose();
   }
 
-  Future<void> _loadPending() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _loadPending({required bool reset}) async {
+    if (reset) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    } else {
+      setState(() => _isLoadingMore = true);
+    }
     try {
-      final profiles = await widget.gateway.loadPending();
+      final result = await widget.gateway.loadPending(
+        page: reset ? 0 : _nextPage,
+        pageSize: _pageSize,
+      );
       if (!mounted) return;
-      setState(() => _profiles = profiles);
+      setState(() {
+        _profiles = reset ? result.items : [..._profiles, ...result.items];
+        _nextPage = (reset ? 0 : _nextPage) + 1;
+        _hasMore = result.hasMore;
+      });
     } on Object catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'Не удалось загрузить анкеты');
+      if (reset) {
+        setState(() => _error = 'Не удалось загрузить анкеты');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось загрузить ещё анкеты')),
+        );
+      }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
+      }
     }
   }
 
@@ -72,10 +99,9 @@ class _AdminModerationScreenState extends State<AdminModerationScreen> {
         reason: reason,
       );
       if (!mounted) return;
-      setState(() {
-        _profiles = _profiles.where((item) => item.id != profile.id).toList();
-        _reasonControllers.remove(profile.id)?.dispose();
-      });
+      _reasonControllers.remove(profile.id)?.dispose();
+      await _loadPending(reset: true);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -115,7 +141,7 @@ class _AdminModerationScreenState extends State<AdminModerationScreen> {
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 12),
               OutlinedButton(
-                onPressed: _loadPending,
+                onPressed: () => _loadPending(reset: true),
                 child: const Text('Повторить'),
               ),
             ],
@@ -128,14 +154,34 @@ class _AdminModerationScreenState extends State<AdminModerationScreen> {
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _profiles.length,
-      itemBuilder: (context, index) => _PendingProfileCard(
-        profile: _profiles[index],
-        reasonController: _reasonControllerFor(_profiles[index].id),
-        isModerating: _moderatingIds.contains(_profiles[index].id),
-        onApprove: () => _moderate(_profiles[index], ModerationStatus.approved),
-        onReject: () => _moderate(_profiles[index], ModerationStatus.rejected),
-      ),
+      itemCount: _profiles.length + (_hasMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == _profiles.length) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: OutlinedButton(
+              onPressed: _isLoadingMore
+                  ? null
+                  : () => _loadPending(reset: false),
+              child: _isLoadingMore
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Загрузить ещё'),
+            ),
+          );
+        }
+        final profile = _profiles[index];
+        return _PendingProfileCard(
+          profile: profile,
+          reasonController: _reasonControllerFor(profile.id),
+          isModerating: _moderatingIds.contains(profile.id),
+          onApprove: () => _moderate(profile, ModerationStatus.approved),
+          onReject: () => _moderate(profile, ModerationStatus.rejected),
+        );
+      },
     );
   }
 }
@@ -169,6 +215,17 @@ class _PendingProfileCard extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             Text('${profile.city} · ${profile.experience}'),
+            if (profile.contactPhone.isNotEmpty)
+              Text('Телефон: ${profile.contactPhone}'),
+            if (profile.skills.isNotEmpty)
+              Text('Навыки: ${profile.skills.join(', ')}'),
+            if (profile.certificates.isNotEmpty)
+              Text('Сертификаты: ${profile.certificates.join(', ')}'),
+            if (profile.desiredPayment != null)
+              Text('Желаемая оплата: ${profile.desiredPayment}'),
+            Text('С проживанием: ${profile.readyForLiveIn ? 'Да' : 'Нет'}'),
+            Text('Ночные смены: ${profile.readyForNightShifts ? 'Да' : 'Нет'}'),
+            Text('Опыт: ${_experienceFlags.join('; ')}'),
             if (profile.schedule.isNotEmpty) Text(profile.schedule),
             if (profile.description.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -203,4 +260,12 @@ class _PendingProfileCard extends StatelessWidget {
       ),
     );
   }
+
+  List<String> get _experienceFlags => [
+    'деменция — ${profile.dementiaExperience ? 'Да' : 'Нет'}',
+    'лежачие пациенты — ${profile.bedriddenExperience ? 'Да' : 'Нет'}',
+    'инсульт — ${profile.strokeExperience ? 'Да' : 'Нет'}',
+    'инфаркт — ${profile.heartAttackExperience ? 'Да' : 'Нет'}',
+    'травмы — ${profile.traumaExperience ? 'Да' : 'Нет'}',
+  ];
 }
