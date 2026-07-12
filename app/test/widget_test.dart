@@ -294,7 +294,10 @@ class _FakeCaregiverSearchGateway implements CaregiverSearchGateway {
 
 class _FakeAdminModerationGateway implements AdminModerationGateway {
   @override
-  Future<List<PendingCaregiverProfile>> loadPending() async => const [];
+  Future<PendingCaregiverProfilesPage> loadPending({
+    required int page,
+    required int pageSize,
+  }) async => const PendingCaregiverProfilesPage(items: [], hasMore: false);
 
   @override
   Future<void> moderate({

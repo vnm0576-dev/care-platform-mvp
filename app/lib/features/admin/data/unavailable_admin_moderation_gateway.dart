@@ -5,7 +5,10 @@ class UnavailableAdminModerationGateway implements AdminModerationGateway {
   const UnavailableAdminModerationGateway();
 
   @override
-  Future<List<PendingCaregiverProfile>> loadPending() {
+  Future<PendingCaregiverProfilesPage> loadPending({
+    required int page,
+    required int pageSize,
+  }) {
     throw StateError('Supabase is not configured.');
   }
 

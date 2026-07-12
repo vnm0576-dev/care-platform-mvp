@@ -8,14 +8,27 @@ class SupabaseAdminModerationGateway implements AdminModerationGateway {
   final SupabaseClient _client;
 
   @override
-  Future<List<PendingCaregiverProfile>> loadPending() async {
+  Future<PendingCaregiverProfilesPage> loadPending({
+    required int page,
+    required int pageSize,
+  }) async {
+    final from = page * pageSize;
     final rows = await _client
         .from('caregiver_profiles')
-        .select('id,full_name,city,experience,schedule,description')
+        .select(
+          'id,full_name,city,contact_phone,experience,certificates,skills,'
+          'schedule,description,desired_payment,ready_for_live_in,'
+          'ready_for_night_shifts,dementia_experience,bedridden_experience,'
+          'stroke_experience,heart_attack_experience,trauma_experience',
+        )
         .eq('status', 'pending_review')
         .order('submitted_at', ascending: true)
-        .order('id', ascending: true);
-    return rows.map(_toPendingProfile).toList(growable: false);
+        .order('id', ascending: true)
+        .range(from, from + pageSize);
+    return PendingCaregiverProfilesPage(
+      items: rows.take(pageSize).map(_toPendingProfile).toList(growable: false),
+      hasMore: rows.length > pageSize,
+    );
   }
 
   @override
@@ -41,8 +54,19 @@ class SupabaseAdminModerationGateway implements AdminModerationGateway {
         id: row['id'] as String,
         fullName: row['full_name'] as String? ?? 'Без имени',
         city: row['city'] as String? ?? 'Город не указан',
+        contactPhone: row['contact_phone'] as String? ?? '',
         experience: row['experience'] as String? ?? 'Опыт не указан',
+        certificates: List<String>.from(row['certificates'] as List? ?? []),
+        skills: List<String>.from(row['skills'] as List? ?? []),
         schedule: row['schedule'] as String? ?? '',
         description: row['description'] as String? ?? '',
+        desiredPayment: row['desired_payment'] as num?,
+        readyForLiveIn: row['ready_for_live_in'] as bool? ?? false,
+        readyForNightShifts: row['ready_for_night_shifts'] as bool? ?? false,
+        dementiaExperience: row['dementia_experience'] as bool? ?? false,
+        bedriddenExperience: row['bedridden_experience'] as bool? ?? false,
+        strokeExperience: row['stroke_experience'] as bool? ?? false,
+        heartAttackExperience: row['heart_attack_experience'] as bool? ?? false,
+        traumaExperience: row['trauma_experience'] as bool? ?? false,
       );
 }
