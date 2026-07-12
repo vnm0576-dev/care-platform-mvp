@@ -23,7 +23,7 @@ void main() {
       expect(missingUrl.isConfigured, isFalse);
     });
 
-    test('accepts a valid Supabase URL and anon key', () {
+    test('accepts a valid HTTPS Supabase URL and publishable key', () {
       const config = AppConfig(
         supabaseUrl: 'https://example.supabase.co',
         supabaseAnonKey: 'publishable-anon-key',
@@ -41,13 +41,46 @@ void main() {
       expect(config.isConfigured, isFalse);
     });
 
-    test('accepts localhost HTTP for local Supabase development', () {
+    test('rejects non-local HTTP Supabase URLs', () {
       const config = AppConfig(
+        supabaseUrl: 'http://care-platform.example',
+        supabaseAnonKey: 'publishable-anon-key',
+      );
+
+      expect(config.isConfigured, isFalse);
+    });
+
+    test('accepts loopback HTTP only for local Supabase development', () {
+      const localhost = AppConfig(
         supabaseUrl: 'http://localhost:54321',
         supabaseAnonKey: 'local-anon-key',
       );
+      const loopback = AppConfig(
+        supabaseUrl: 'http://127.0.0.1:54321',
+        supabaseAnonKey: 'local-anon-key',
+      );
 
-      expect(config.isConfigured, isTrue);
+      expect(localhost.isConfigured, isTrue);
+      expect(loopback.isConfigured, isTrue);
+    });
+
+    test('rejects a Supabase secret key', () {
+      const config = AppConfig(
+        supabaseUrl: 'https://example.supabase.co',
+        supabaseAnonKey: 'sb_secret_a_real_secret_must_not_be_shipped',
+      );
+
+      expect(config.isConfigured, isFalse);
+    });
+
+    test('rejects a legacy service-role JWT', () {
+      const config = AppConfig(
+        supabaseUrl: 'https://example.supabase.co',
+        supabaseAnonKey:
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature',
+      );
+
+      expect(config.isConfigured, isFalse);
     });
   });
 }
