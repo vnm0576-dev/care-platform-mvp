@@ -45,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
         AppRole.client => AppRoutes.client,
         AppRole.admin => AppRoutes.admin,
       };
-      await Navigator.pushReplacementNamed(context, route);
+      await Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
     } on Object catch (_) {
       if (!mounted) {
         return;

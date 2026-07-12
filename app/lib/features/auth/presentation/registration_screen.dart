@@ -60,6 +60,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       }
       if (result.needsEmailConfirmation) {
         await _showConfirmationNotice();
+        if (!mounted) {
+          return;
+        }
+        await Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.root,
+          (route) => false,
+        );
         return;
       }
       final route = switch (_role) {
@@ -67,7 +75,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         AppRole.client => AppRoutes.client,
         AppRole.admin => AppRoutes.admin,
       };
-      await Navigator.pushReplacementNamed(context, route);
+      await Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
     } on Object catch (_) {
       if (!mounted) {
         return;
@@ -87,20 +95,21 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Future<void> _showConfirmationNotice() {
     return showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Подтвердите email'),
-        content: const Text(
-          'Мы отправили письмо для подтверждения адреса. После подтверждения войдите в приложение.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('Понятно'),
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: const Text('Подтвердите email'),
+          content: const Text(
+            'Мы отправили письмо для подтверждения адреса. После подтверждения войдите в приложение.',
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Понятно'),
+            ),
+          ],
+        ),
       ),
     );
   }
