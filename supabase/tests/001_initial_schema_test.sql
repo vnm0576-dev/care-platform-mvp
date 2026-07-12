@@ -125,6 +125,33 @@ end;
 $$;
 
 -- Approved profiles need meaningful skills, not merely non-empty array slots.
+-- Legacy rows accepted by the previous cardinality-only check are removed from
+-- client visibility and returned to an editable state during migration.
+select tests.assert_true(
+  exists (
+    select 1
+    from public.caregiver_profiles
+    where profile_id = '00000000-0000-0000-0000-000000000005'
+      and status = 'rejected'
+      and approved_at is null
+      and rejected_at is not null
+      and rejection_reason = 'Profile requires at least one meaningful skill before publication'
+  ),
+  'legacy approved profile with blank skills was not remediated safely'
+);
+select tests.assert_true(
+  exists (
+    select 1
+    from public.caregiver_profiles
+    where profile_id = '00000000-0000-0000-0000-000000000006'
+      and status = 'rejected'
+      and approved_at is null
+      and rejected_at is not null
+      and rejection_reason = 'Profile requires at least one meaningful skill before publication'
+  ),
+  'legacy approved profile with a tab-only skill was not remediated safely'
+);
+
 do $$
 begin
   begin
@@ -153,6 +180,21 @@ begin
       'approved', clock_timestamp()
     );
     raise exception 'approved profile accepted a blank skill';
+  exception
+    when check_violation then null;
+  end;
+
+  begin
+    insert into public.caregiver_profiles (
+      profile_id, full_name, city, contact_phone, experience,
+      skills, schedule, description, status, approved_at
+    ) values (
+      '00000000-0000-0000-0000-000000000002',
+      'Test Caregiver', 'Chelyabinsk', '+700****0001', '5 years',
+      array[E'\t\n'], 'day shifts', 'Test approved profile',
+      'approved', clock_timestamp()
+    );
+    raise exception 'approved profile accepted a tab-only skill';
   exception
     when check_violation then null;
   end;

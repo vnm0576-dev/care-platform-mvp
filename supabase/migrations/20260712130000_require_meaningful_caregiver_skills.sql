@@ -12,12 +12,23 @@ as $$
     and not exists (
       select 1
       from unnest(p_skills) as skill
-      where btrim(skill) = ''
+      where skill !~ '[^[:space:]]'
     );
 $$;
 
 alter table public.caregiver_profiles
   drop constraint caregiver_profiles_approved_fields_check;
+
+-- Profiles that passed the former cardinality-only rule must not remain public
+-- when the stricter publication invariant is introduced. Rejection lets the
+-- owner correct the skills and submit again through the established workflow.
+update public.caregiver_profiles
+set status = 'rejected',
+    approved_at = null,
+    rejected_at = clock_timestamp(),
+    rejection_reason = 'Profile requires at least one meaningful skill before publication'
+where status = 'approved'
+  and not public.has_meaningful_caregiver_skills(skills);
 
 alter table public.caregiver_profiles
   add constraint caregiver_profiles_approved_fields_check
