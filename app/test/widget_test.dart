@@ -1,5 +1,7 @@
 import 'package:care_platform_app/app.dart';
 import 'package:care_platform_app/core/config/app_config.dart';
+import 'package:care_platform_app/features/admin/domain/admin_moderation.dart';
+import 'package:care_platform_app/features/admin/domain/admin_moderation_gateway.dart';
 import 'package:care_platform_app/features/auth/domain/auth_gateway.dart';
 import 'package:care_platform_app/features/auth/domain/auth_registration_request.dart';
 import 'package:care_platform_app/features/caregiver/domain/caregiver_profile.dart';
@@ -246,13 +248,14 @@ void main() {
     expect(find.text('Найти сиделку'), findsOneWidget);
     expect(find.text('Заявка на подбор сиделки'), findsNothing);
   });
-  testWidgets('opens a safe holding screen for the administrator route', (
+  testWidgets('opens the moderation queue for the administrator route', (
     tester,
   ) async {
     await tester.pumpWidget(
       CarePlatformApp(
         config: configuredAppConfig,
         authGateway: _FakeAuthGateway(),
+        adminModerationGateway: _FakeAdminModerationGateway(),
       ),
     );
 
@@ -261,7 +264,8 @@ void main() {
         .pushNamed(AppRoutes.admin);
     await tester.pumpAndSettle();
 
-    expect(find.text('Раздел модерации готовится'), findsOneWidget);
+    expect(find.text('Модерация анкет'), findsOneWidget);
+    expect(find.text('Анкеты ожидают модерации'), findsOneWidget);
   });
 }
 
@@ -286,6 +290,19 @@ class _FakeCaregiverSearchGateway implements CaregiverSearchGateway {
     required int page,
     required int pageSize,
   }) async => const CaregiverSearchPage(items: [], hasMore: false);
+}
+
+class _FakeAdminModerationGateway implements AdminModerationGateway {
+  @override
+  Future<List<PendingCaregiverProfile>> loadPending() async => const [];
+
+  @override
+  Future<void> moderate({
+    required String caregiverProfileId,
+    required ModerationStatus newStatus,
+    required String reason,
+    String? comment,
+  }) async {}
 }
 
 class _FakeClientRequestGateway implements ClientRequestGateway {

@@ -1,6 +1,9 @@
 import 'package:care_platform_app/app.dart';
 import 'package:care_platform_app/core/config/app_config.dart';
 import 'package:care_platform_app/core/config/supabase_bootstrap.dart';
+import 'package:care_platform_app/features/admin/data/supabase_admin_moderation_gateway.dart';
+import 'package:care_platform_app/features/admin/data/unavailable_admin_moderation_gateway.dart';
+import 'package:care_platform_app/features/admin/domain/admin_moderation_gateway.dart';
 import 'package:care_platform_app/features/auth/data/supabase_auth_gateway.dart';
 import 'package:care_platform_app/features/auth/data/unavailable_auth_gateway.dart';
 import 'package:care_platform_app/features/auth/domain/auth_gateway.dart';
@@ -44,6 +47,10 @@ Future<void> main() async {
       config.isConfigured && initializationError == null
       ? SupabaseClientRequestGateway(Supabase.instance.client)
       : const UnavailableClientRequestGateway();
+  final AdminModerationGateway adminModerationGateway =
+      config.isConfigured && initializationError == null
+      ? SupabaseAdminModerationGateway(Supabase.instance.client)
+      : const UnavailableAdminModerationGateway();
 
   runApp(
     CarePlatformApp(
@@ -52,6 +59,7 @@ Future<void> main() async {
       caregiverGateway: caregiverGateway,
       caregiverSearchGateway: caregiverSearchGateway,
       clientRequestGateway: clientRequestGateway,
+      adminModerationGateway: adminModerationGateway,
       initializationError: initializationError,
     ),
   );
