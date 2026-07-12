@@ -19,8 +19,8 @@ for command_name in psql createdb dropdb; do
 done
 
 required_files=(
-  "supabase/migrations/001_initial_schema.sql"
-  "supabase/seed/001_profile_statuses.sql"
+  "supabase/migrations/20260710160000_initial_schema.sql"
+  "supabase/migrations/20260710161000_profile_statuses.sql"
   "supabase/tests/001_initial_schema_test.sql"
 )
 for relative_path in "${required_files[@]}"; do
@@ -42,11 +42,11 @@ create table auth.users (
 SQL
 
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
-  --file="$tmp_dir/001_initial_schema.sql"
+  --file="$tmp_dir/20260710160000_initial_schema.sql"
 # Run the seed twice to verify that it is idempotent.
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
-  --file="$tmp_dir/001_profile_statuses.sql"
+  --file="$tmp_dir/20260710161000_profile_statuses.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
-  --file="$tmp_dir/001_profile_statuses.sql"
+  --file="$tmp_dir/20260710161000_profile_statuses.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/001_initial_schema_test.sql"
