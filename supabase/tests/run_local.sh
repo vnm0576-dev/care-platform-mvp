@@ -21,6 +21,7 @@ done
 required_files=(
   "supabase/migrations/20260710160000_initial_schema.sql"
   "supabase/migrations/20260710161000_profile_statuses.sql"
+  "supabase/migrations/20260712130000_require_meaningful_caregiver_skills.sql"
   "supabase/tests/001_initial_schema_test.sql"
 )
 for relative_path in "${required_files[@]}"; do
@@ -48,5 +49,7 @@ sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/20260710161000_profile_statuses.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/20260710161000_profile_statuses.sql"
+sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
+  --file="$tmp_dir/20260712130000_require_meaningful_caregiver_skills.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/001_initial_schema_test.sql"
