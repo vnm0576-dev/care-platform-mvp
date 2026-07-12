@@ -18,7 +18,7 @@ class SupabaseCaregiverSearchGateway implements CaregiverSearchGateway {
         .from('caregiver_profiles')
         .select('id, full_name, city, experience, schedule, description')
         .eq('status', 'approved')
-        .ilike('city', city)
+        .eq('city', city.trim())
         .order('created_at', ascending: false)
         .order('id', ascending: false)
         .range(range.from, range.to);

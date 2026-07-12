@@ -27,6 +27,8 @@ class _ClientCaregiverSearchScreenState
   bool _searched = false;
   bool _hasMore = false;
   int _currentPage = 0;
+  int _requestId = 0;
+  String? _activeCity;
   String? _error;
 
   @override
@@ -39,10 +41,12 @@ class _ClientCaregiverSearchScreenState
     final city = _cityController.text.trim();
     if (city.isEmpty) return;
 
+    final requestId = ++_requestId;
     setState(() {
       _isLoading = true;
       _searched = true;
       _error = null;
+      _activeCity = city;
     });
     try {
       final result = await widget.gateway.loadApproved(
@@ -50,42 +54,51 @@ class _ClientCaregiverSearchScreenState
         page: 0,
         pageSize: _pageSize,
       );
-      if (!mounted) return;
+      if (!mounted || requestId != _requestId) return;
       setState(() {
         _items = result.items;
         _hasMore = result.hasMore;
         _currentPage = 0;
       });
     } on Object catch (_) {
-      if (!mounted) return;
+      if (!mounted || requestId != _requestId) return;
       setState(() => _error = 'Не удалось загрузить анкеты');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && requestId == _requestId) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   Future<void> _loadNextPage() async {
-    if (_isLoading || !_hasMore) return;
+    if (_isLoading || !_hasMore || _activeCity == null) return;
 
     final nextPage = _currentPage + 1;
-    setState(() => _isLoading = true);
+    final requestId = _requestId;
+    final city = _activeCity!;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final result = await widget.gateway.loadApproved(
-        city: _cityController.text.trim(),
+        city: city,
         page: nextPage,
         pageSize: _pageSize,
       );
-      if (!mounted) return;
+      if (!mounted || requestId != _requestId) return;
       setState(() {
         _items = [..._items, ...result.items];
         _hasMore = result.hasMore;
         _currentPage = nextPage;
       });
     } on Object catch (_) {
-      if (!mounted) return;
+      if (!mounted || requestId != _requestId) return;
       setState(() => _error = 'Не удалось загрузить следующую страницу');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && requestId == _requestId) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -109,13 +122,18 @@ class _ClientCaregiverSearchScreenState
               onPressed: _isLoading ? null : _search,
               child: const Text('Найти сиделку'),
             ),
-            if (_isLoading) ...[
+            if (_isLoading && _items.isEmpty) ...[
               const SizedBox(height: 24),
               const Center(child: CircularProgressIndicator()),
-            ] else if (_error != null) ...[
+            ],
+            if (_error != null) ...[
               const SizedBox(height: 24),
               Text(_error!, textAlign: TextAlign.center),
-            ] else if (_searched && _items.isEmpty) ...[
+            ],
+            if (!_isLoading &&
+                _error == null &&
+                _searched &&
+                _items.isEmpty) ...[
               const SizedBox(height: 24),
               const Text(
                 'По вашему запросу сиделок пока нет',
@@ -125,7 +143,8 @@ class _ClientCaregiverSearchScreenState
                 onPressed: widget.onLeaveRequest,
                 child: const Text('Оставить заявку'),
               ),
-            ] else ...[
+            ],
+            if (_items.isNotEmpty) ...[
               for (final item in _items) _CaregiverCard(item: item),
               if (_hasMore)
                 Padding(
