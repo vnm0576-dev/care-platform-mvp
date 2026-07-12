@@ -19,10 +19,10 @@ for command_name in psql createdb dropdb; do
 done
 
 required_files=(
-  "supabase/migrations/001_initial_schema.sql"
-  "supabase/migrations/002_rls_policies.sql"
-  "supabase/migrations/003_auth_foundation.sql"
-  "supabase/seed/001_profile_statuses.sql"
+  "supabase/migrations/20260710160000_initial_schema.sql"
+  "supabase/migrations/20260710161000_profile_statuses.sql"
+  "supabase/migrations/20260710162000_rls_policies.sql"
+  "supabase/migrations/20260710163000_auth_foundation.sql"
   "supabase/tests/003_auth_foundation_test.sql"
 )
 for relative_path in "${required_files[@]}"; do
@@ -69,11 +69,11 @@ grant execute on function auth.uid() to authenticated, anon;
 SQL
 
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
-  --file="$tmp_dir/001_initial_schema.sql"
+  --file="$tmp_dir/20260710160000_initial_schema.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
-  --file="$tmp_dir/001_profile_statuses.sql"
+  --file="$tmp_dir/20260710161000_profile_statuses.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
-  --file="$tmp_dir/002_rls_policies.sql"
+  --file="$tmp_dir/20260710162000_rls_policies.sql"
 
 # Simulates an auth user that predates the automatic profile trigger. Migration
 # 003 intentionally does not guess role/full_name for existing accounts.
@@ -87,6 +87,6 @@ values (
 SQL
 
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
-  --file="$tmp_dir/003_auth_foundation.sql"
+  --file="$tmp_dir/20260710163000_auth_foundation.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/003_auth_foundation_test.sql"

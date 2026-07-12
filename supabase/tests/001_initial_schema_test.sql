@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- Executed after 001_initial_schema.sql and 001_profile_statuses.sql.
+-- Executed after the initial schema and profile status production migrations.
 -- The auth.users table is created by the local test fixture.
 
 create schema if not exists tests;

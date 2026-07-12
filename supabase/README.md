@@ -4,10 +4,11 @@ This directory contains the executable PostgreSQL foundation for MVP v1.
 
 ## Files
 
-- `migrations/001_initial_schema.sql` — tables, constraints, relationships, timestamp triggers and indexes.
-- `migrations/002_rls_policies.sql` — least-privilege grants, RLS policies and protected status-transition RPC functions.
-- `migrations/003_auth_foundation.sql` — automatic `auth.users` → `public.profiles` registration trigger and role validation.
-- `seed/001_profile_statuses.sql` — idempotent seed for caregiver profile statuses.
+- `migrations/20260710160000_initial_schema.sql` — tables, constraints, relationships, timestamp triggers and indexes.
+- `migrations/20260710161000_profile_statuses.sql` — idempotent deployment migration for caregiver profile statuses.
+- `migrations/20260710162000_rls_policies.sql` — least-privilege grants, RLS policies and protected status-transition RPC functions.
+- `migrations/20260710163000_auth_foundation.sql` — automatic `auth.users` → `public.profiles` registration trigger and role validation.
+- `migrations/20260712115500_caregiver_profile_editability.sql` — server-side restriction of owner edits to draft/rejected questionnaires.
 - `tests/001_initial_schema_test.sql` — database-level schema assertions.
 - `tests/002_rls_policies_test.sql` — role isolation, visibility and moderation assertions.
 - `tests/003_auth_foundation_test.sql` — registration linkage, metadata validation and privilege-escalation assertions.
@@ -17,10 +18,13 @@ This directory contains the executable PostgreSQL foundation for MVP v1.
 
 ## Apply order
 
-1. Apply `migrations/001_initial_schema.sql`.
-2. Apply `seed/001_profile_statuses.sql`.
-3. Apply `migrations/002_rls_policies.sql` before exposing tables to application clients.
-4. Apply `migrations/003_auth_foundation.sql` to enable automatic profile creation for new signups.
+1. Apply `migrations/20260710160000_initial_schema.sql`.
+2. Apply `migrations/20260710161000_profile_statuses.sql`.
+3. Apply `migrations/20260710162000_rls_policies.sql` before exposing tables to application clients.
+4. Apply `migrations/20260710163000_auth_foundation.sql` to enable automatic profile creation for new signups.
+5. Apply `migrations/20260712115500_caregiver_profile_editability.sql` to enforce the editable lifecycle server-side.
+
+These filenames follow the Supabase CLI timestamp migration contract, so `supabase db push` includes both schema and required status reference rows without a separate seed command.
 
 The migration expects the Supabase-managed `auth.users` table to exist. It does not create or replace that system table.
 
