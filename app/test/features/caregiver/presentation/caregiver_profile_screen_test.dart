@@ -12,6 +12,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
     );
+    await tester.pumpAndSettle();
 
     await _fillRequiredFields(tester);
     await _selectSkillAndSave(tester);
@@ -33,6 +34,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
     );
+    await tester.pumpAndSettle();
 
     await _fillRequiredFields(tester);
     await tester.drag(find.byType(ListView), const Offset(0, -600));
@@ -60,6 +62,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
       );
+      await tester.pumpAndSettle();
 
       await _fillRequiredFields(tester);
       await tester.drag(find.byType(ListView), const Offset(0, -600));
@@ -96,6 +99,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
     );
+    await tester.pumpAndSettle();
 
     final save = find.widgetWithText(
       FilledButton,
@@ -117,6 +121,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
     );
+    await tester.pumpAndSettle();
 
     final save = find.widgetWithText(
       FilledButton,

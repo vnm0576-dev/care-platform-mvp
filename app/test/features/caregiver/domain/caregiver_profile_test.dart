@@ -45,4 +45,43 @@ void main() {
       'trauma_experience': false,
     });
   });
+
+  test(
+    'incomplete draft writes nullable text fields as null, never blanks',
+    () {
+      const draft = CaregiverProfileDraft(
+        fullName: '  ',
+        city: '',
+        district: '',
+        contactPhone: ' ',
+        experience: '',
+        education: '',
+        certificates: [],
+        skills: [],
+        schedule: '',
+        description: ' ',
+        desiredPayment: null,
+        readyForLiveIn: false,
+        readyForNightShifts: false,
+        dementiaExperience: false,
+        bedriddenExperience: false,
+        strokeExperience: false,
+        heartAttackExperience: false,
+        traumaExperience: false,
+      );
+
+      final payload = draft.toWritePayload();
+
+      for (final field in [
+        'full_name',
+        'city',
+        'contact_phone',
+        'experience',
+        'schedule',
+        'description',
+      ]) {
+        expect(payload[field], isNull, reason: '$field must not be blank');
+      }
+    },
+  );
 }

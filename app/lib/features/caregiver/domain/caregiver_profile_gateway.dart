@@ -16,9 +16,11 @@ class CaregiverProfileRecord {
     required this.id,
     required this.status,
     this.rejectionReason,
+    this.draft,
   });
 
   final String id;
   final CaregiverProfileStatus status;
   final String? rejectionReason;
+  final CaregiverProfileDraft? draft;
 }
