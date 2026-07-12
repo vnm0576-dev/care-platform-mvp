@@ -21,6 +21,7 @@ done
 required_files=(
   "supabase/migrations/001_initial_schema.sql"
   "supabase/migrations/002_rls_policies.sql"
+  "supabase/migrations/004_caregiver_profile_editability.sql"
   "supabase/seed/001_profile_statuses.sql"
   "supabase/tests/002_rls_policies_test.sql"
 )
@@ -70,5 +71,7 @@ sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/001_profile_statuses.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/002_rls_policies.sql"
+sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
+  --file="$tmp_dir/004_caregiver_profile_editability.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/002_rls_policies_test.sql"
