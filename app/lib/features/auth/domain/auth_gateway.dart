@@ -10,4 +10,6 @@ abstract interface class AuthGateway {
   Future<RegistrationResult> signUp(AuthRegistrationRequest request);
 
   Future<AppRole> signIn({required String email, required String password});
+
+  Future<void> signOut();
 }

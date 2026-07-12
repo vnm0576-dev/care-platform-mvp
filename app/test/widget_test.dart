@@ -126,6 +126,86 @@ void main() {
       'phone': '+79990000000',
     });
   });
+  testWidgets('clears the welcome and login stack after successful sign-in', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: _FakeAuthGateway(),
+        caregiverGateway: _FakeCaregiverProfileGateway(),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Войти'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'caregiver@example.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'secure-pass');
+    await tester.tap(find.widgetWithText(FilledButton, 'Войти'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Черновик анкеты сиделки'), findsOneWidget);
+    expect(
+      tester.state<NavigatorState>(find.byType(Navigator)).canPop(),
+      isFalse,
+    );
+  });
+
+  testWidgets(
+    'clears the welcome and registration stack after immediate signup',
+    (tester) async {
+      await tester.pumpWidget(
+        CarePlatformApp(
+          config: configuredAppConfig,
+          authGateway: _FakeAuthGateway(),
+          caregiverGateway: _FakeCaregiverProfileGateway(),
+        ),
+      );
+
+      await _submitRegistration(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Черновик анкеты сиделки'), findsOneWidget);
+      expect(
+        tester.state<NavigatorState>(find.byType(Navigator)).canPop(),
+        isFalse,
+      );
+    },
+  );
+
+  testWidgets('keeps the registration confirmation open until acknowledged', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: _FakeAuthGateway(needsEmailConfirmation: true),
+      ),
+    );
+
+    await _submitRegistration(tester);
+    await tester.pump();
+
+    expect(find.text('Подтвердите email'), findsOneWidget);
+    await tester.tapAt(const Offset(1, 1));
+    await tester.pump();
+
+    expect(find.text('Подтвердите email'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Создать аккаунт'), findsNothing);
+
+    await tester.tap(find.text('Понятно'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Платформа заботы'), findsOneWidget);
+    expect(
+      tester.state<NavigatorState>(find.byType(Navigator)).canPop(),
+      isFalse,
+    );
+  });
+
   testWidgets('opens the caregiver draft instead of the placeholder route', (
     tester,
   ) async {
@@ -185,6 +265,20 @@ void main() {
   });
 }
 
+Future<void> _submitRegistration(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(OutlinedButton, 'Зарегистрироваться'));
+  await tester.pumpAndSettle();
+  await tester.enterText(find.byType(TextFormField).at(0), 'Ирина Петрова');
+  await tester.enterText(find.byType(TextFormField).at(1), 'irina@example.com');
+  await tester.enterText(find.byType(TextFormField).at(2), '+79990000000');
+  await tester.enterText(find.byType(TextFormField).at(3), 'secure-pass-123');
+  await tester.ensureVisible(find.byType(Checkbox));
+  await tester.tap(find.byType(Checkbox));
+  final submitButton = find.widgetWithText(FilledButton, 'Создать аккаунт');
+  await tester.ensureVisible(submitButton);
+  await tester.tap(submitButton);
+}
+
 class _FakeCaregiverSearchGateway implements CaregiverSearchGateway {
   @override
   Future<CaregiverSearchPage> loadApproved({
@@ -218,6 +312,9 @@ class _FakeCaregiverProfileGateway implements CaregiverProfileGateway {
 }
 
 class _FakeAuthGateway implements AuthGateway {
+  _FakeAuthGateway({this.needsEmailConfirmation = false});
+
+  final bool needsEmailConfirmation;
   String? email;
   String? password;
   AuthRegistrationRequest? signUpRequest;
@@ -225,8 +322,11 @@ class _FakeAuthGateway implements AuthGateway {
   @override
   Future<RegistrationResult> signUp(AuthRegistrationRequest request) async {
     signUpRequest = request;
-    return const RegistrationResult(needsEmailConfirmation: false);
+    return RegistrationResult(needsEmailConfirmation: needsEmailConfirmation);
   }
+
+  @override
+  Future<void> signOut() async {}
 
   @override
   Future<AppRole> signIn({

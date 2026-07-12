@@ -33,11 +33,19 @@ class SupabaseAuthGateway implements AuthGateway {
       );
     }
 
-    final profile = await _client
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-    return AppRole.fromDatabaseValue(profile['role'] as String);
+    try {
+      final profile = await _client
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+      return AppRole.fromDatabaseValue(profile['role'] as String);
+    } on Object {
+      await signOut();
+      rethrow;
+    }
   }
+
+  @override
+  Future<void> signOut() => _client.auth.signOut();
 }
