@@ -70,11 +70,11 @@ class CaregiverProfileDraft {
   final bool traumaExperience;
 
   Map<String, dynamic> toWritePayload() => {
-    'full_name': fullName.trim(),
-    'city': city.trim(),
+    'full_name': _nullableText(fullName),
+    'city': _nullableText(city),
     if (district.trim().isNotEmpty) 'district': district.trim(),
-    'contact_phone': contactPhone.trim(),
-    'experience': experience.trim(),
+    'contact_phone': _nullableText(contactPhone),
+    'experience': _nullableText(experience),
     if (education.trim().isNotEmpty) 'education': education.trim(),
     'certificates': certificates
         .map((value) => value.trim())
@@ -84,8 +84,8 @@ class CaregiverProfileDraft {
         .map((value) => value.trim())
         .where((value) => value.isNotEmpty)
         .toList(),
-    'schedule': schedule.trim(),
-    'description': description.trim(),
+    'schedule': _nullableText(schedule),
+    'description': _nullableText(description),
     if (desiredPayment != null) 'desired_payment': desiredPayment,
     'ready_for_live_in': readyForLiveIn,
     'ready_for_night_shifts': readyForNightShifts,
@@ -95,4 +95,9 @@ class CaregiverProfileDraft {
     'heart_attack_experience': heartAttackExperience,
     'trauma_experience': traumaExperience,
   };
+
+  static String? _nullableText(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
 }

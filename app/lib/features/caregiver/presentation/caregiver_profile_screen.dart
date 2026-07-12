@@ -30,6 +30,7 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
   ];
 
   bool _isSaving = false;
+  bool _isLoading = true;
   CaregiverProfileRecord? _record;
 
   @override
@@ -41,10 +42,28 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
   Future<void> _loadExistingProfile() async {
     try {
       final record = await widget.gateway.loadOwnProfile();
-      if (mounted) setState(() => _record = record);
+      if (!mounted) return;
+      _hydrateDraft(record?.draft);
+      setState(() {
+        _record = record;
+        _isLoading = false;
+      });
     } on Object {
-      // A draft can still be created if the existing profile is unavailable.
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _hydrateDraft(CaregiverProfileDraft? draft) {
+    if (draft == null) return;
+    _fullNameController.text = draft.fullName;
+    _cityController.text = draft.city;
+    _phoneController.text = draft.contactPhone;
+    _experienceController.text = draft.experience;
+    _scheduleController.text = draft.schedule;
+    _descriptionController.text = draft.description;
+    _skills
+      ..clear()
+      ..addAll(draft.skills);
   }
 
   @override
@@ -97,6 +116,7 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
   }
 
   Future<void> _saveDraft() async {
+    if (_isLoading || !_isEditable) return;
     setState(() => _isSaving = true);
     try {
       await _persistCurrentDraft();
@@ -111,10 +131,9 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
   }
 
   Future<void> _submitForReview() async {
+    if (_isLoading || !_isEditable) return;
     setState(() => _isSaving = true);
     try {
-      // Persist first: the protected RPC must validate the same skills that
-      // the caregiver currently sees, rather than an earlier local snapshot.
       final record = await _persistCurrentDraft(showSuccess: false);
       if (record == null) return;
       await widget.gateway.submitForReview(record.id);
@@ -138,11 +157,21 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
     }
   }
 
+  bool get _isEditable => switch (_record?.status) {
+    null ||
+    CaregiverProfileStatus.draft ||
+    CaregiverProfileStatus.rejected => true,
+    _ => false,
+  };
+
   @override
   Widget build(BuildContext context) {
+    final canEdit = !_isLoading && _isEditable;
     final canSubmit =
+        _record == null ||
         _record?.status == CaregiverProfileStatus.draft ||
         _record?.status == CaregiverProfileStatus.rejected;
+    final isReadOnly = !_isLoading && _record != null && !_isEditable;
     return Scaffold(
       appBar: AppBar(title: const Text('Анкета сиделки')),
       bottomNavigationBar: SafeArea(
@@ -150,18 +179,24 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FilledButton(
-              onPressed: _isSaving ? null : _saveDraft,
-              child: Text(_isSaving ? 'Сохранение…' : 'Сохранить черновик'),
-            ),
-            if (canSubmit) ...[
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: _isSaving || _skills.isEmpty
-                    ? null
-                    : _submitForReview,
-                child: const Text('Отправить на модерацию'),
+            if (_isLoading)
+              const Text('Загрузка анкеты…')
+            else if (isReadOnly)
+              Text(_readOnlyStatusMessage(_record!.status))
+            else ...[
+              FilledButton(
+                onPressed: _isSaving ? null : _saveDraft,
+                child: Text(_isSaving ? 'Сохранение…' : 'Сохранить черновик'),
               ),
+              if (canSubmit) ...[
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: _isSaving || _skills.isEmpty
+                      ? null
+                      : _submitForReview,
+                  child: const Text('Отправить на модерацию'),
+                ),
+              ],
             ],
           ],
         ),
@@ -179,23 +214,38 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
               'Черновик можно сохранить неполным. Полнота проверяется при отправке на модерацию.',
             ),
             const SizedBox(height: 24),
-            _field(controller: _fullNameController, label: 'ФИО'),
-            _field(controller: _cityController, label: 'Город'),
-            _field(controller: _phoneController, label: 'Телефон'),
+            _field(
+              controller: _fullNameController,
+              label: 'ФИО',
+              enabled: canEdit,
+            ),
+            _field(
+              controller: _cityController,
+              label: 'Город',
+              enabled: canEdit,
+            ),
+            _field(
+              controller: _phoneController,
+              label: 'Телефон',
+              enabled: canEdit,
+            ),
             _field(
               controller: _experienceController,
               label: 'Опыт работы',
               maxLines: 3,
+              enabled: canEdit,
             ),
             _field(
               controller: _scheduleController,
               label: 'График',
               maxLines: 2,
+              enabled: canEdit,
             ),
             _field(
               controller: _descriptionController,
               label: 'О себе',
               maxLines: 4,
+              enabled: canEdit,
             ),
             const Text('Навыки'),
             const SizedBox(height: 8),
@@ -207,15 +257,17 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
                     (skill) => FilterChip(
                       label: Text(skill),
                       selected: _skills.contains(skill),
-                      onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            _skills.add(skill);
-                          } else {
-                            _skills.remove(skill);
-                          }
-                        });
-                      },
+                      onSelected: !canEdit
+                          ? null
+                          : (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _skills.add(skill);
+                                } else {
+                                  _skills.remove(skill);
+                                }
+                              });
+                            },
                     ),
                   )
                   .toList(growable: false),
@@ -231,13 +283,26 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
     required TextEditingController controller,
     required String label,
     int maxLines = 1,
+    bool enabled = true,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
     child: TextField(
       key: ValueKey(label),
       controller: controller,
+      enabled: enabled,
       maxLines: maxLines,
       decoration: InputDecoration(labelText: label),
     ),
   );
+
+  String _readOnlyStatusMessage(CaregiverProfileStatus status) =>
+      switch (status) {
+        CaregiverProfileStatus.approved =>
+          'Анкета одобрена и недоступна для редактирования.',
+        CaregiverProfileStatus.pendingReview =>
+          'Анкета на модерации и недоступна для редактирования.',
+        CaregiverProfileStatus.hidden =>
+          'Анкета скрыта и недоступна для редактирования.',
+        _ => '',
+      };
 }
