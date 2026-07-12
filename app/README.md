@@ -45,6 +45,14 @@ flutter run -d chrome \
 
 For Android, replace `-d chrome` with the connected device or emulator ID shown by `flutter devices`.
 
+### Transport security
+
+Production configuration accepts only `https://` Supabase URLs. The app rejects `http://` URLs except loopback hosts (`localhost`, `127.0.0.1`, `::1`) intended for local development. Release and profile Android builds explicitly disable cleartext traffic.
+
+The debug Android manifest alone enables cleartext traffic so a local loopback Supabase instance can be tested during development. Android emulators and physical devices do not treat a development machine's `localhost` as their own; use an HTTPS-accessible development endpoint for device testing rather than relaxing the release policy.
+
+Only a Supabase public/publishable key belongs in `SUPABASE_ANON_KEY`. The client rejects modern `sb_secret_` keys and legacy JWTs whose role is `service_role`; this is a guardrail, not a substitute for key rotation if a secret was exposed.
+
 ## Verify
 
 ```bash
