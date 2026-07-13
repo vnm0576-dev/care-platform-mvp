@@ -60,6 +60,25 @@ select tests.assert_true(
   'client registration did not create the expected linked profile'
 );
 
+-- Invisible metadata phone must not shadow a valid auth.users.phone fallback.
+insert into auth.users (id, email, phone, raw_user_meta_data)
+values (
+  '00000000-0000-0000-0000-000000000404',
+  'phone-fallback@example.test',
+  '  +700****0404  ',
+  jsonb_build_object(
+    'full_name', 'Phone Fallback',
+    'role', 'client',
+    'phone', E'\t\n'
+  )
+);
+select tests.assert_true(
+  (select phone = '+700****0404'
+   from public.profiles
+   where id = '00000000-0000-0000-0000-000000000404'),
+  'invisible metadata phone suppressed the auth.users.phone fallback'
+);
+
 -- Metadata is normalized at the boundary but can never produce admin.
 insert into auth.users (id, email, raw_user_meta_data)
 values (

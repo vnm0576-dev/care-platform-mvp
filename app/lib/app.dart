@@ -45,6 +45,7 @@ class CarePlatformApp extends StatefulWidget {
 }
 
 class _CarePlatformAppState extends State<CarePlatformApp> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
   AppRole? _role;
   int _authGeneration = 0;
 
@@ -66,6 +67,15 @@ class _CarePlatformAppState extends State<CarePlatformApp> {
     setState(() {
       _role = role;
     });
+    if (role != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || generation != _authGeneration || _role != role) return;
+        _navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          AppRoutes.root,
+          (route) => false,
+        );
+      });
+    }
   }
 
   void _authenticated(AppRole role) {
@@ -142,6 +152,7 @@ class _CarePlatformAppState extends State<CarePlatformApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'Платформа заботы',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),

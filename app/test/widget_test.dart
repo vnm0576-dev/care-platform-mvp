@@ -329,6 +329,29 @@ void main() {
 
     expect(find.text('Модерация анкет'), findsNothing);
   });
+
+  testWidgets('redirects an auth route after a saved session is restored', (
+    tester,
+  ) async {
+    final gateway = _DeferredRoleAuthGateway();
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: gateway,
+        caregiverGateway: _FakeCaregiverProfileGateway(),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Войти'));
+    await tester.pumpAndSettle();
+    expect(find.text('Вход'), findsOneWidget);
+
+    gateway.completeRestore(AppRole.caregiver);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Черновик анкеты сиделки'), findsOneWidget);
+    expect(find.text('Вход'), findsNothing);
+  });
 }
 
 Future<void> _submitRegistration(WidgetTester tester) async {

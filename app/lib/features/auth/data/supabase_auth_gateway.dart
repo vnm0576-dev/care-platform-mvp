@@ -7,6 +7,11 @@ class SupabaseAuthGateway implements AuthGateway {
 
   final SupabaseClient _client;
 
+  static bool shouldClearSessionAfterRoleLookupError(Object error) {
+    return error is ArgumentError ||
+        error is PostgrestException && error.code == 'PGRST116';
+  }
+
   @override
   Future<RegistrationResult> signUp(AuthRegistrationRequest request) async {
     final response = await _client.auth.signUp(
@@ -60,8 +65,10 @@ class SupabaseAuthGateway implements AuthGateway {
           .eq('id', user.id)
           .single();
       return AppRole.fromDatabaseValue(profile['role'] as String);
-    } on Object {
-      await signOut();
+    } on Object catch (error) {
+      if (shouldClearSessionAfterRoleLookupError(error)) {
+        await signOut();
+      }
       rethrow;
     }
   }

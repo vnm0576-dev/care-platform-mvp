@@ -198,10 +198,15 @@ declare
   v_metadata jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
   v_full_name text := nullif(btrim(v_metadata ->> 'full_name'), '');
   v_role text := lower(nullif(btrim(v_metadata ->> 'role'), ''));
-  v_phone text := coalesce(
-    nullif(btrim(v_metadata ->> 'phone'), ''),
-    nullif(btrim(new.phone), '')
-  );
+  v_metadata_phone text := nullif(btrim(v_metadata ->> 'phone'), '');
+  v_auth_phone text := nullif(btrim(new.phone), '');
+  v_phone text := case
+    when coalesce(public.has_visible_text(v_metadata_phone), false)
+      then v_metadata_phone
+    when coalesce(public.has_visible_text(v_auth_phone), false)
+      then v_auth_phone
+    else null
+  end;
 begin
   if not coalesce(public.has_visible_text(v_full_name), false) then
     raise exception using errcode = '22023', message = 'Registration metadata full_name is required';
