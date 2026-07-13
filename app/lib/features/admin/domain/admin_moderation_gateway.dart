@@ -2,7 +2,7 @@ import 'package:care_platform_app/features/admin/domain/admin_moderation.dart';
 
 abstract interface class AdminModerationGateway {
   Future<PendingCaregiverProfilesPage> loadPending({
-    required int page,
+    PendingCaregiverCursor? cursor,
     required int pageSize,
   });
 

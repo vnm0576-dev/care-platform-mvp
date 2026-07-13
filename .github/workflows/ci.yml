@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install Flutter stable
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Analyze
+        run: flutter analyze
+      - name: Test
+        run: flutter test
+      - name: Compile unconfigured web target
+        run: flutter build web
+      - name: Create disposable CI release keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$RUNNER_TEMP/ci-upload-key.jks" \
+            -storepass ci-test-password \
+            -keypass ci-test-password \
+            -alias upload \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 1 \
+            -dname "CN=CI Test, OU=CI, O=Care Platform, L=Test, ST=Test, C=RU"
+          cat > android/key.properties <<EOF
+          storePassword=ci-test-password
+          keyPassword=ci-test-password
+          keyAlias=upload
+          storeFile=$RUNNER_TEMP/ci-upload-key.jks
+          EOF
+      - name: Compile non-deployable signed Android release target
+        run: flutter build appbundle --release
+
+  postgres:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Start PostgreSQL
+        run: sudo systemctl start postgresql
+      - name: Verify schema migrations
+        run: ./supabase/tests/run_local.sh
+      - name: Verify Auth foundation
+        run: ./supabase/tests/run_auth_tests.sh
+      - name: Verify RLS and moderation
+        run: ./supabase/tests/run_rls_tests.sh
+      - name: Verify deployable migration layout
+        run: ./supabase/tests/004_deployable_migrations_test.sh

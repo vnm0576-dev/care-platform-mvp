@@ -60,6 +60,37 @@ void main() {
     expect(find.text('Сохранить черновик'), findsOneWidget);
   });
 
+  testWidgets('preserves loaded optional fields when saving visible edits', (
+    tester,
+  ) async {
+    final gateway = _Gateway(
+      record: const CaregiverProfileRecord(
+        id: 'draft-1',
+        status: CaregiverProfileStatus.draft,
+        draft: _draftWithOptionalFields,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('О себе'), skipOffstage: false),
+      'Обновлённое описание',
+    );
+    await tester.tap(find.text('Сохранить черновик'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.savedDraft?.description, 'Обновлённое описание');
+    expect(gateway.savedDraft?.district, 'Центральный');
+    expect(gateway.savedDraft?.education, 'Медицинский колледж');
+    expect(gateway.savedDraft?.certificates, ['Первая помощь']);
+    expect(gateway.savedDraft?.desiredPayment, 2500);
+    expect(gateway.savedDraft?.readyForLiveIn, isTrue);
+    expect(gateway.savedDraft?.dementiaExperience, isTrue);
+  });
+
   testWidgets('does not expose edit actions for a moderated profile', (
     tester,
   ) async {
@@ -85,6 +116,57 @@ void main() {
       isFalse,
     );
   });
+
+  testWidgets('shows load failure, retries, and displays rejection reason', (
+    tester,
+  ) async {
+    final gateway = _RetryGateway();
+    await tester.pumpWidget(
+      MaterialApp(home: CaregiverProfileScreen(gateway: gateway)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Не удалось загрузить анкету'), findsOneWidget);
+    expect(find.text('Сохранить черновик'), findsNothing);
+
+    await tester.tap(find.text('Повторить загрузку'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.loadCalls, 2);
+    expect(
+      find.text('Причина отклонения: Уточните опыт работы'),
+      findsOneWidget,
+    );
+    expect(find.text('Сохранить черновик'), findsOneWidget);
+  });
+}
+
+class _RetryGateway implements CaregiverProfileGateway {
+  int loadCalls = 0;
+
+  @override
+  Future<CaregiverProfileRecord?> loadOwnProfile() async {
+    loadCalls++;
+    if (loadCalls == 1) throw StateError('offline');
+    return const CaregiverProfileRecord(
+      id: 'rejected-1',
+      status: CaregiverProfileStatus.rejected,
+      rejectionReason: 'Уточните опыт работы',
+      draft: _draft,
+    );
+  }
+
+  @override
+  Future<CaregiverProfileRecord> saveDraft({
+    required CaregiverProfileDraft draft,
+    String? existingProfileId,
+  }) async => const CaregiverProfileRecord(
+    id: 'rejected-1',
+    status: CaregiverProfileStatus.rejected,
+  );
+
+  @override
+  Future<void> submitForReview(String caregiverProfileId) async {}
 }
 
 String _field(WidgetTester tester, String label) => tester
@@ -113,9 +195,31 @@ const _draft = CaregiverProfileDraft(
   traumaExperience: false,
 );
 
+const _draftWithOptionalFields = CaregiverProfileDraft(
+  fullName: 'Ирина Петрова',
+  city: 'Челябинск',
+  district: 'Центральный',
+  contactPhone: '+799****0000',
+  experience: '5 лет',
+  education: 'Медицинский колледж',
+  certificates: ['Первая помощь'],
+  skills: ['Уход при деменции'],
+  schedule: 'Дневные смены',
+  description: 'Организую уход.',
+  desiredPayment: 2500,
+  readyForLiveIn: true,
+  readyForNightShifts: true,
+  dementiaExperience: true,
+  bedriddenExperience: true,
+  strokeExperience: true,
+  heartAttackExperience: true,
+  traumaExperience: true,
+);
+
 class _Gateway implements CaregiverProfileGateway {
   _Gateway({this.record});
   final CaregiverProfileRecord? record;
+  CaregiverProfileDraft? savedDraft;
 
   @override
   Future<CaregiverProfileRecord?> loadOwnProfile() async => record;
@@ -124,11 +228,14 @@ class _Gateway implements CaregiverProfileGateway {
   Future<CaregiverProfileRecord> saveDraft({
     required CaregiverProfileDraft draft,
     String? existingProfileId,
-  }) async => CaregiverProfileRecord(
-    id: existingProfileId ?? 'new',
-    status: CaregiverProfileStatus.draft,
-    draft: draft,
-  );
+  }) async {
+    savedDraft = draft;
+    return CaregiverProfileRecord(
+      id: existingProfileId ?? 'new',
+      status: CaregiverProfileStatus.draft,
+      draft: draft,
+    );
+  }
 
   @override
   Future<void> submitForReview(String caregiverProfileId) async {}

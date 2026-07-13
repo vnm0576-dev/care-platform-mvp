@@ -171,21 +171,28 @@ void main() {
 }
 
 Future<void> _fillRequiredFields(WidgetTester tester) async {
-  await tester.enterText(find.byKey(const ValueKey('ФИО')), 'Ирина Петрова');
-  await tester.enterText(find.byKey(const ValueKey('Город')), 'Челябинск');
-  await tester.enterText(find.byKey(const ValueKey('Телефон')), '+799****0000');
-  await tester.enterText(
-    find.byKey(const ValueKey('Опыт работы')),
-    '5 лет работы сиделкой',
-  );
-  final schedule = find.byKey(const ValueKey('График'), skipOffstage: false);
-  await tester.ensureVisible(schedule);
-  await tester.enterText(schedule, 'Дневные смены');
-  final description = find.byKey(const ValueKey('О себе'), skipOffstage: false);
-  await tester.ensureVisible(description);
-  await tester.enterText(description, 'Организую уход и быт.');
+  await _enterField(tester, 'ФИО', 'Ирина Петрова');
+  await _enterField(tester, 'Город', 'Челябинск');
+  await _enterField(tester, 'Телефон', '+799****0000');
+  await _enterField(tester, 'Опыт работы', '5 лет работы сиделкой');
+  await _enterField(tester, 'График', 'Дневные смены');
+  await _enterField(tester, 'О себе', 'Организую уход и быт.');
   await tester.testTextInput.receiveAction(TextInputAction.done);
   await tester.pumpAndSettle();
+}
+
+Future<void> _enterField(
+  WidgetTester tester,
+  String label,
+  String value,
+) async {
+  final field = find.byKey(ValueKey(label), skipOffstage: false);
+  await tester.scrollUntilVisible(
+    field,
+    150,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.enterText(field, value);
 }
 
 Future<void> _selectSkillAndSave(WidgetTester tester) async {

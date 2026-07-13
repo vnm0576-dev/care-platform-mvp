@@ -1,16 +1,19 @@
 import 'package:care_platform_app/features/client/domain/caregiver_search.dart';
 import 'package:care_platform_app/features/client/domain/caregiver_search_gateway.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class ClientCaregiverSearchScreen extends StatefulWidget {
   const ClientCaregiverSearchScreen({
     required this.gateway,
     required this.onLeaveRequest,
+    this.onSignOut,
     super.key,
   });
 
   final CaregiverSearchGateway gateway;
   final VoidCallback onLeaveRequest;
+  final VoidCallback? onSignOut;
 
   @override
   State<ClientCaregiverSearchScreen> createState() =>
@@ -26,7 +29,7 @@ class _ClientCaregiverSearchScreenState
   bool _isLoading = false;
   bool _searched = false;
   bool _hasMore = false;
-  int _currentPage = 0;
+  CaregiverSearchCursor? _nextCursor;
   int _requestId = 0;
   String? _activeCity;
   String? _error;
@@ -47,18 +50,21 @@ class _ClientCaregiverSearchScreenState
       _searched = true;
       _error = null;
       _activeCity = city;
+      _items = const [];
+      _hasMore = false;
+      _nextCursor = null;
     });
     try {
       final result = await widget.gateway.loadApproved(
         city: city,
-        page: 0,
+        cursor: null,
         pageSize: _pageSize,
       );
       if (!mounted || requestId != _requestId) return;
       setState(() {
         _items = result.items;
         _hasMore = result.hasMore;
-        _currentPage = 0;
+        _nextCursor = result.nextCursor;
       });
     } on Object catch (_) {
       if (!mounted || requestId != _requestId) return;
@@ -73,7 +79,6 @@ class _ClientCaregiverSearchScreenState
   Future<void> _loadNextPage() async {
     if (_isLoading || !_hasMore || _activeCity == null) return;
 
-    final nextPage = _currentPage + 1;
     final requestId = _requestId;
     final city = _activeCity!;
     setState(() {
@@ -83,14 +88,14 @@ class _ClientCaregiverSearchScreenState
     try {
       final result = await widget.gateway.loadApproved(
         city: city,
-        page: nextPage,
+        cursor: _nextCursor,
         pageSize: _pageSize,
       );
       if (!mounted || requestId != _requestId) return;
       setState(() {
         _items = [..._items, ...result.items];
         _hasMore = result.hasMore;
-        _currentPage = nextPage;
+        _nextCursor = result.nextCursor;
       });
     } on Object catch (_) {
       if (!mounted || requestId != _requestId) return;
@@ -105,7 +110,18 @@ class _ClientCaregiverSearchScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Поиск сиделки')),
+      appBar: AppBar(
+        title: const Text('Поиск сиделки'),
+        actions: widget.onSignOut == null
+            ? null
+            : [
+                IconButton(
+                  onPressed: widget.onSignOut,
+                  tooltip: 'Выйти',
+                  icon: const Icon(Icons.logout),
+                ),
+              ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),
@@ -180,6 +196,25 @@ class _CaregiverCard extends StatelessWidget {
             Text(item.city),
             Text('Опыт: ${item.experience}'),
             Text(item.schedule),
+            if (item.contactPhone.isNotEmpty)
+              Row(
+                children: [
+                  Expanded(child: Text('Связаться: ${item.contactPhone}')),
+                  IconButton(
+                    tooltip: 'Скопировать телефон',
+                    onPressed: () async {
+                      await Clipboard.setData(
+                        ClipboardData(text: item.contactPhone),
+                      );
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Телефон скопирован')),
+                      );
+                    },
+                    icon: const Icon(Icons.copy),
+                  ),
+                ],
+              ),
             const SizedBox(height: 8),
             Text(item.description),
           ],

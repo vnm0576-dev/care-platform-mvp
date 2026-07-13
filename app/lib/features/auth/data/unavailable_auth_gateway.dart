@@ -18,4 +18,7 @@ class UnavailableAuthGateway implements AuthGateway {
   Future<void> signOut() {
     throw StateError('Supabase is not configured');
   }
+
+  @override
+  Future<AppRole?> currentRole() async => null;
 }

@@ -43,15 +43,25 @@ void main() {
       'Нужна сиделка для ежедневной помощи дома.',
     );
     expect(gateway.savedRequest?.contactPhone, isNotEmpty);
-    expect(find.text('Заявка сохранена'), findsOneWidget);
+    expect(
+      find.widgetWithText(FilledButton, 'Заявка сохранена'),
+      findsOneWidget,
+    );
+    expect(gateway.createCalls, 1);
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
   });
 }
 
 class _FakeClientRequestGateway implements ClientRequestGateway {
   ClientRequestDraft? savedRequest;
+  int createCalls = 0;
 
   @override
   Future<ClientRequestRecord> create(ClientRequestDraft request) async {
+    createCalls++;
     savedRequest = request;
     return const ClientRequestRecord(id: 'request-1');
   }

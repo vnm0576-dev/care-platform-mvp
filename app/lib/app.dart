@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:care_platform_app/core/config/app_config.dart';
 import 'package:care_platform_app/core/theme/app_theme.dart';
 import 'package:care_platform_app/features/admin/data/unavailable_admin_moderation_gateway.dart';
 import 'package:care_platform_app/features/admin/domain/admin_moderation_gateway.dart';
 import 'package:care_platform_app/features/admin/presentation/admin_moderation_screen.dart';
 import 'package:care_platform_app/features/auth/domain/auth_gateway.dart';
+import 'package:care_platform_app/features/auth/domain/auth_registration_request.dart';
 import 'package:care_platform_app/features/auth/presentation/login_screen.dart';
 import 'package:care_platform_app/features/auth/presentation/registration_screen.dart';
 import 'package:care_platform_app/features/auth/presentation/welcome_screen.dart';
@@ -19,7 +22,7 @@ import 'package:care_platform_app/features/client/presentation/client_request_sc
 import 'package:care_platform_app/navigation/app_routes.dart';
 import 'package:flutter/material.dart';
 
-class CarePlatformApp extends StatelessWidget {
+class CarePlatformApp extends StatefulWidget {
   const CarePlatformApp({
     required this.config,
     required this.authGateway,
@@ -40,32 +43,174 @@ class CarePlatformApp extends StatelessWidget {
   final Object? initializationError;
 
   @override
+  State<CarePlatformApp> createState() => _CarePlatformAppState();
+}
+
+class _CarePlatformAppState extends State<CarePlatformApp> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  AppRole? _role;
+  int _authGeneration = 0;
+  StreamSubscription<AuthSessionChange>? _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreSession();
+    if (widget.authGateway case AuthStateAwareGateway gateway) {
+      _authSubscription = gateway.authStateChanges.listen(_authStateChanged);
+    }
+  }
+
+  void _authStateChanged(AuthSessionChange change) {
+    if (!mounted) return;
+    _authGeneration++;
+    switch (change) {
+      case AuthSessionChange.signedIn:
+        setState(() => _role = null);
+        _navigateToRootWhileSignedOut();
+        _restoreSession();
+      case AuthSessionChange.sessionUpdated:
+        _restoreSession(redirectToRoot: false);
+      case AuthSessionChange.signedOut:
+        setState(() => _role = null);
+        _navigateToRootWhileSignedOut();
+    }
+  }
+
+  void _navigateToRootWhileSignedOut() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _role != null) return;
+      _navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        AppRoutes.root,
+        (route) => false,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _restoreSession({bool redirectToRoot = true}) async {
+    final generation = _authGeneration;
+    final previousRole = _role;
+    AppRole? role;
+    try {
+      role = await widget.authGateway.currentRole();
+    } on Object {
+      if (previousRole != null) return;
+      role = null;
+    }
+    if (!mounted || generation != _authGeneration) return;
+    setState(() {
+      _role = role;
+    });
+    if (role != null && (redirectToRoot || role != previousRole)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || generation != _authGeneration || _role != role) return;
+        _navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          AppRoutes.root,
+          (route) => false,
+        );
+      });
+    }
+  }
+
+  void _authenticated(AppRole role) {
+    _authGeneration++;
+    setState(() => _role = role);
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    _authGeneration++;
+    try {
+      await widget.authGateway.signOut();
+      if (!mounted || !context.mounted) return;
+      setState(() => _role = null);
+      await Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.root, (route) => false);
+    } on Object {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Не удалось выйти')));
+    }
+  }
+
+  Widget _root() {
+    return switch (_role) {
+      AppRole.caregiver => _caregiverScreen(),
+      AppRole.client => _clientScreen(),
+      AppRole.admin => _adminScreen(),
+      null => WelcomeScreen(
+        config: widget.config,
+        initializationError: widget.initializationError,
+      ),
+    };
+  }
+
+  Widget _caregiverScreen() => Builder(
+    builder: (context) => CaregiverProfileScreen(
+      gateway: widget.caregiverGateway,
+      onSignOut: () => _signOut(context),
+    ),
+  );
+
+  Widget _clientScreen() => Builder(
+    builder: (context) => ClientCaregiverSearchScreen(
+      gateway: widget.caregiverSearchGateway,
+      onSignOut: () => _signOut(context),
+      onLeaveRequest: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              ClientRequestScreen(gateway: widget.clientRequestGateway),
+        ),
+      ),
+    ),
+  );
+
+  Widget _adminScreen() => Builder(
+    builder: (context) => AdminModerationScreen(
+      gateway: widget.adminModerationGateway,
+      onSignOut: () => _signOut(context),
+    ),
+  );
+
+  Widget _guarded(AppRole requiredRole, Widget Function() screen) {
+    if (_role != requiredRole) {
+      return WelcomeScreen(
+        config: widget.config,
+        initializationError: widget.initializationError,
+      );
+    }
+    return screen();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'Платформа заботы',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       initialRoute: AppRoutes.root,
       routes: {
-        AppRoutes.root: (_) => WelcomeScreen(
-          config: config,
-          initializationError: initializationError,
+        AppRoutes.root: (_) => _root(),
+        AppRoutes.login: (_) => LoginScreen(
+          authGateway: widget.authGateway,
+          onAuthenticated: _authenticated,
         ),
-        AppRoutes.login: (_) => LoginScreen(authGateway: authGateway),
-        AppRoutes.register: (_) => RegistrationScreen(authGateway: authGateway),
-        AppRoutes.admin: (_) =>
-            AdminModerationScreen(gateway: adminModerationGateway),
+        AppRoutes.register: (_) => RegistrationScreen(
+          authGateway: widget.authGateway,
+          onAuthenticated: _authenticated,
+        ),
+        AppRoutes.admin: (_) => _guarded(AppRole.admin, _adminScreen),
         AppRoutes.caregiver: (_) =>
-            CaregiverProfileScreen(gateway: caregiverGateway),
-        AppRoutes.client: (context) => ClientCaregiverSearchScreen(
-          gateway: caregiverSearchGateway,
-          onLeaveRequest: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  ClientRequestScreen(gateway: clientRequestGateway),
-            ),
-          ),
-        ),
+            _guarded(AppRole.caregiver, _caregiverScreen),
+        AppRoutes.client: (_) => _guarded(AppRole.client, _clientScreen),
       },
     );
   }

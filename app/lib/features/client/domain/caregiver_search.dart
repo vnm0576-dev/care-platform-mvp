@@ -1,23 +1,17 @@
-class CaregiverSearchRange {
-  const CaregiverSearchRange({required this.from, required this.to});
+class CaregiverSearchCursor {
+  const CaregiverSearchCursor({required this.approvedAt, required this.id});
 
-  factory CaregiverSearchRange.forPage({
-    required int page,
-    required int pageSize,
-  }) {
-    final from = page * pageSize;
-    return CaregiverSearchRange(from: from, to: from + pageSize);
-  }
-
-  final int from;
-  final int to;
+  final DateTime approvedAt;
+  final String id;
 
   @override
   bool operator ==(Object other) =>
-      other is CaregiverSearchRange && other.from == from && other.to == to;
+      other is CaregiverSearchCursor &&
+      other.approvedAt == approvedAt &&
+      other.id == id;
 
   @override
-  int get hashCode => Object.hash(from, to);
+  int get hashCode => Object.hash(approvedAt, id);
 }
 
 class CaregiverSearchCard {
@@ -28,6 +22,8 @@ class CaregiverSearchCard {
     required this.experience,
     required this.schedule,
     required this.description,
+    required this.approvedAt,
+    this.contactPhone = '',
   });
 
   final String id;
@@ -36,11 +32,21 @@ class CaregiverSearchCard {
   final String experience;
   final String schedule;
   final String description;
+  final String contactPhone;
+  final DateTime approvedAt;
+
+  CaregiverSearchCursor get cursor =>
+      CaregiverSearchCursor(approvedAt: approvedAt, id: id);
 }
 
 class CaregiverSearchPage {
-  const CaregiverSearchPage({required this.items, required this.hasMore});
+  const CaregiverSearchPage({
+    required this.items,
+    required this.hasMore,
+    this.nextCursor,
+  });
 
   final List<CaregiverSearchCard> items;
   final bool hasMore;
+  final CaregiverSearchCursor? nextCursor;
 }

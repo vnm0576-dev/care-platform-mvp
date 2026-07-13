@@ -4,9 +4,14 @@ import 'package:care_platform_app/navigation/app_routes.dart';
 import 'package:flutter/material.dart';
 
 class RegistrationScreen extends StatefulWidget {
-  const RegistrationScreen({required this.authGateway, super.key});
+  const RegistrationScreen({
+    required this.authGateway,
+    this.onAuthenticated,
+    super.key,
+  });
 
   final AuthGateway authGateway;
+  final ValueChanged<AppRole>? onAuthenticated;
 
   @override
   State<RegistrationScreen> createState() => _RegistrationScreenState();
@@ -75,6 +80,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         AppRole.client => AppRoutes.client,
         AppRole.admin => AppRoutes.admin,
       };
+      widget.onAuthenticated?.call(_role);
       await Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
     } on Object catch (_) {
       if (!mounted) {

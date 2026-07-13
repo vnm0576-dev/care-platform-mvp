@@ -3,9 +3,14 @@ import 'package:care_platform_app/features/caregiver/domain/caregiver_profile_ga
 import 'package:flutter/material.dart';
 
 class CaregiverProfileScreen extends StatefulWidget {
-  const CaregiverProfileScreen({required this.gateway, super.key});
+  const CaregiverProfileScreen({
+    required this.gateway,
+    this.onSignOut,
+    super.key,
+  });
 
   final CaregiverProfileGateway gateway;
+  final VoidCallback? onSignOut;
 
   @override
   State<CaregiverProfileScreen> createState() => _CaregiverProfileScreenState();
@@ -31,6 +36,7 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
 
   bool _isSaving = false;
   bool _isLoading = true;
+  String? _loadError;
   CaregiverProfileRecord? _record;
 
   @override
@@ -40,6 +46,10 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
   }
 
   Future<void> _loadExistingProfile() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
     try {
       final record = await widget.gateway.loadOwnProfile();
       if (!mounted) return;
@@ -49,7 +59,12 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
         _isLoading = false;
       });
     } on Object {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _loadError = 'Не удалось загрузить анкету';
+        });
+      }
     }
   }
 
@@ -77,26 +92,29 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
     super.dispose();
   }
 
-  CaregiverProfileDraft _currentDraft() => CaregiverProfileDraft(
-    fullName: _fullNameController.text,
-    city: _cityController.text,
-    district: '',
-    contactPhone: _phoneController.text,
-    experience: _experienceController.text,
-    education: '',
-    certificates: const [],
-    skills: _skills.toList(growable: false),
-    schedule: _scheduleController.text,
-    description: _descriptionController.text,
-    desiredPayment: null,
-    readyForLiveIn: false,
-    readyForNightShifts: false,
-    dementiaExperience: false,
-    bedriddenExperience: false,
-    strokeExperience: false,
-    heartAttackExperience: false,
-    traumaExperience: false,
-  );
+  CaregiverProfileDraft _currentDraft() {
+    final loadedDraft = _record?.draft;
+    return CaregiverProfileDraft(
+      fullName: _fullNameController.text,
+      city: _cityController.text,
+      district: loadedDraft?.district ?? '',
+      contactPhone: _phoneController.text,
+      experience: _experienceController.text,
+      education: loadedDraft?.education ?? '',
+      certificates: loadedDraft?.certificates ?? const [],
+      skills: _skills.toList(growable: false),
+      schedule: _scheduleController.text,
+      description: _descriptionController.text,
+      desiredPayment: loadedDraft?.desiredPayment,
+      readyForLiveIn: loadedDraft?.readyForLiveIn ?? false,
+      readyForNightShifts: loadedDraft?.readyForNightShifts ?? false,
+      dementiaExperience: loadedDraft?.dementiaExperience ?? false,
+      bedriddenExperience: loadedDraft?.bedriddenExperience ?? false,
+      strokeExperience: loadedDraft?.strokeExperience ?? false,
+      heartAttackExperience: loadedDraft?.heartAttackExperience ?? false,
+      traumaExperience: loadedDraft?.traumaExperience ?? false,
+    );
+  }
 
   Future<CaregiverProfileRecord?> _persistCurrentDraft({
     bool showSuccess = true,
@@ -166,14 +184,25 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canEdit = !_isLoading && _isEditable;
+    final canEdit = !_isLoading && _loadError == null && _isEditable;
     final canSubmit =
         _record == null ||
         _record?.status == CaregiverProfileStatus.draft ||
         _record?.status == CaregiverProfileStatus.rejected;
     final isReadOnly = !_isLoading && _record != null && !_isEditable;
     return Scaffold(
-      appBar: AppBar(title: const Text('Анкета сиделки')),
+      appBar: AppBar(
+        title: const Text('Анкета сиделки'),
+        actions: widget.onSignOut == null
+            ? null
+            : [
+                IconButton(
+                  onPressed: widget.onSignOut,
+                  tooltip: 'Выйти',
+                  icon: const Icon(Icons.logout),
+                ),
+              ],
+      ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.all(16),
         child: Column(
@@ -181,6 +210,11 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
           children: [
             if (_isLoading)
               const Text('Загрузка анкеты…')
+            else if (_loadError != null)
+              OutlinedButton(
+                onPressed: _loadExistingProfile,
+                child: const Text('Повторить загрузку'),
+              )
             else if (isReadOnly)
               Text(_readOnlyStatusMessage(_record!.status))
             else ...[
@@ -205,6 +239,24 @@ class _CaregiverProfileScreenState extends State<CaregiverProfileScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
+            if (_loadError != null) ...[
+              Text(_loadError!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+            ],
+            if (_record?.status == CaregiverProfileStatus.rejected) ...[
+              Card(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    _record?.rejectionReason?.trim().isNotEmpty == true
+                        ? 'Причина отклонения: ${_record!.rejectionReason}'
+                        : 'Анкета отклонена. Исправьте данные и отправьте её повторно.',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             Text(
               'Черновик анкеты сиделки',
               style: Theme.of(context).textTheme.headlineSmall,

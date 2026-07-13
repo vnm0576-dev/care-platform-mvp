@@ -7,7 +7,7 @@ class UnavailableCaregiverSearchGateway implements CaregiverSearchGateway {
   @override
   Future<CaregiverSearchPage> loadApproved({
     required String city,
-    required int page,
+    CaregiverSearchCursor? cursor,
     required int pageSize,
   }) {
     throw StateError('Supabase is not configured.');

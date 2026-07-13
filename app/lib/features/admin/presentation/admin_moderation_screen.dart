@@ -3,9 +3,14 @@ import 'package:care_platform_app/features/admin/domain/admin_moderation_gateway
 import 'package:flutter/material.dart';
 
 class AdminModerationScreen extends StatefulWidget {
-  const AdminModerationScreen({required this.gateway, super.key});
+  const AdminModerationScreen({
+    required this.gateway,
+    this.onSignOut,
+    super.key,
+  });
 
   final AdminModerationGateway gateway;
+  final VoidCallback? onSignOut;
 
   @override
   State<AdminModerationScreen> createState() => _AdminModerationScreenState();
@@ -20,7 +25,8 @@ class _AdminModerationScreenState extends State<AdminModerationScreen> {
   bool _isLoading = true;
   bool _isLoadingMore = false;
   bool _hasMore = false;
-  int _nextPage = 0;
+  PendingCaregiverCursor? _nextCursor;
+  int _loadGeneration = 0;
   String? _error;
 
   @override
@@ -38,6 +44,7 @@ class _AdminModerationScreenState extends State<AdminModerationScreen> {
   }
 
   Future<void> _loadPending({required bool reset}) async {
+    final generation = reset ? ++_loadGeneration : _loadGeneration;
     if (reset) {
       setState(() {
         _isLoading = true;
@@ -48,17 +55,17 @@ class _AdminModerationScreenState extends State<AdminModerationScreen> {
     }
     try {
       final result = await widget.gateway.loadPending(
-        page: reset ? 0 : _nextPage,
+        cursor: reset ? null : _nextCursor,
         pageSize: _pageSize,
       );
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _profiles = reset ? result.items : [..._profiles, ...result.items];
-        _nextPage = (reset ? 0 : _nextPage) + 1;
+        _nextCursor = result.nextCursor;
         _hasMore = result.hasMore;
       });
     } on Object catch (_) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       if (reset) {
         setState(() => _error = 'Не удалось загрузить анкеты');
       } else {
@@ -67,7 +74,7 @@ class _AdminModerationScreenState extends State<AdminModerationScreen> {
         );
       }
     } finally {
-      if (mounted) {
+      if (mounted && generation == _loadGeneration) {
         setState(() {
           _isLoading = false;
           _isLoadingMore = false;
@@ -124,7 +131,18 @@ class _AdminModerationScreenState extends State<AdminModerationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Модерация анкет')),
+      appBar: AppBar(
+        title: const Text('Модерация анкет'),
+        actions: widget.onSignOut == null
+            ? null
+            : [
+                IconButton(
+                  onPressed: widget.onSignOut,
+                  tooltip: 'Выйти',
+                  icon: const Icon(Icons.logout),
+                ),
+              ],
+      ),
       body: SafeArea(child: _buildBody()),
     );
   }
@@ -217,6 +235,11 @@ class _PendingProfileCard extends StatelessWidget {
             Text('${profile.city} · ${profile.experience}'),
             if (profile.contactPhone.isNotEmpty)
               Text('Телефон: ${profile.contactPhone}'),
+            if (profile.district case final district?) Text('Район: $district'),
+            if (profile.education case final education?)
+              Text('Образование: $education'),
+            if (profile.photoUrl case final photoUrl?) Text('Фото: $photoUrl'),
+            Text('Отправлено: ${_submittedAtText(profile.submittedAt)}'),
             if (profile.skills.isNotEmpty)
               Text('Навыки: ${profile.skills.join(', ')}'),
             if (profile.certificates.isNotEmpty)
@@ -268,4 +291,11 @@ class _PendingProfileCard extends StatelessWidget {
     'инфаркт — ${profile.heartAttackExperience ? 'Да' : 'Нет'}',
     'травмы — ${profile.traumaExperience ? 'Да' : 'Нет'}',
   ];
+
+  String _submittedAtText(DateTime value) {
+    final local = value.toLocal();
+    String twoDigits(int number) => number.toString().padLeft(2, '0');
+    return '${local.year}-${twoDigits(local.month)}-${twoDigits(local.day)} '
+        '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
+  }
 }

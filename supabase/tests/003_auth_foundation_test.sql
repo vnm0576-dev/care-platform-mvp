@@ -60,6 +60,25 @@ select tests.assert_true(
   'client registration did not create the expected linked profile'
 );
 
+-- Invisible metadata phone must not shadow a valid auth.users.phone fallback.
+insert into auth.users (id, email, phone, raw_user_meta_data)
+values (
+  '00000000-0000-0000-0000-000000000404',
+  'phone-fallback@example.test',
+  '  +700****0404  ',
+  jsonb_build_object(
+    'full_name', 'Phone Fallback',
+    'role', 'client',
+    'phone', E'\t\n'
+  )
+);
+select tests.assert_true(
+  (select phone = '+700****0404'
+   from public.profiles
+   where id = '00000000-0000-0000-0000-000000000404'),
+  'invisible metadata phone suppressed the auth.users.phone fallback'
+);
+
 -- Metadata is normalized at the boundary but can never produce admin.
 insert into auth.users (id, email, raw_user_meta_data)
 values (
@@ -154,6 +173,26 @@ $$;
 select tests.assert_true(
   not exists (select 1 from auth.users where id = '00000000-0000-0000-0000-000000000413'),
   'missing-name auth user survived failed registration'
+);
+
+do $$
+begin
+  begin
+    insert into auth.users (id, email, raw_user_meta_data)
+    values (
+      '00000000-0000-0000-0000-000000000414',
+      'whitespace-name@example.test',
+      jsonb_build_object('full_name', E' \t\n ', 'role', 'client')
+    );
+    raise exception 'whitespace-only full_name registration was accepted';
+  exception
+    when invalid_parameter_value then null;
+  end;
+end;
+$$;
+select tests.assert_true(
+  not exists (select 1 from auth.users where id = '00000000-0000-0000-0000-000000000414'),
+  'whitespace-only name auth user survived failed registration'
 );
 
 -- Updating untrusted metadata later does not mutate the application role.

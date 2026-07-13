@@ -36,6 +36,7 @@ required_files=(
   "supabase/migrations/20260710161000_profile_statuses.sql"
   "supabase/migrations/20260712130000_require_meaningful_caregiver_skills.sql"
   "supabase/migrations/20260712140000_repair_legacy_meaningful_skills.sql"
+  "supabase/migrations/20260712150000_repair_hidden_meaningful_skills.sql"
   "supabase/tests/001_initial_schema_test.sql"
 )
 for relative_path in "${required_files[@]}"; do
@@ -114,5 +115,23 @@ insert into public.caregiver_profiles (
 SQL
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/20260712140000_repair_legacy_meaningful_skills.sql"
+sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" <<'SQL'
+-- Hidden rows were not subject to the former approved-only publication check.
+-- They must become owner-editable instead of being trapped in hidden status.
+insert into auth.users (id) values ('00000000-0000-0000-0000-000000000007');
+insert into public.profiles (id, full_name, role) values
+  ('00000000-0000-0000-0000-000000000007', 'Legacy Hidden Caregiver', 'caregiver');
+insert into public.caregiver_profiles (
+  profile_id, full_name, city, contact_phone, experience,
+  skills, schedule, description, status, approved_at, hidden_reason, hidden_at
+) values (
+  '00000000-0000-0000-0000-000000000007',
+  'Legacy Hidden Caregiver', 'Chelyabinsk', '+700****0007', '5 years',
+  array[E'\t'], 'day shifts', 'Legacy hidden tab-only skill profile',
+  'hidden', clock_timestamp(), 'Temporarily hidden', clock_timestamp()
+);
+SQL
+sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
+  --file="$tmp_dir/20260712150000_repair_hidden_meaningful_skills.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/001_initial_schema_test.sql"

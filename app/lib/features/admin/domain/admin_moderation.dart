@@ -26,6 +26,10 @@ class PendingCaregiverProfile {
     required this.strokeExperience,
     required this.heartAttackExperience,
     required this.traumaExperience,
+    required this.district,
+    required this.education,
+    required this.photoUrl,
+    required this.submittedAt,
   });
 
   final String id;
@@ -45,14 +49,41 @@ class PendingCaregiverProfile {
   final bool strokeExperience;
   final bool heartAttackExperience;
   final bool traumaExperience;
+  final String? district;
+  final String? education;
+  final String? photoUrl;
+  final DateTime submittedAt;
+}
+
+class PendingCaregiverCursor {
+  const PendingCaregiverCursor({required this.submittedAt, required this.id});
+
+  final DateTime submittedAt;
+  final String id;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PendingCaregiverCursor &&
+      other.submittedAt == submittedAt &&
+      other.id == id;
+
+  @override
+  int get hashCode => Object.hash(submittedAt, id);
+}
+
+extension PendingCaregiverProfileCursor on PendingCaregiverProfile {
+  PendingCaregiverCursor get cursor =>
+      PendingCaregiverCursor(submittedAt: submittedAt, id: id);
 }
 
 class PendingCaregiverProfilesPage {
   const PendingCaregiverProfilesPage({
     required this.items,
     required this.hasMore,
+    this.nextCursor,
   });
 
   final List<PendingCaregiverProfile> items;
   final bool hasMore;
+  final PendingCaregiverCursor? nextCursor;
 }

@@ -4,9 +4,14 @@ import 'package:care_platform_app/navigation/app_routes.dart';
 import 'package:flutter/material.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({required this.authGateway, super.key});
+  const LoginScreen({
+    required this.authGateway,
+    this.onAuthenticated,
+    super.key,
+  });
 
   final AuthGateway authGateway;
+  final ValueChanged<AppRole>? onAuthenticated;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -45,6 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
         AppRole.client => AppRoutes.client,
         AppRole.admin => AppRoutes.admin,
       };
+      widget.onAuthenticated?.call(role);
       await Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
     } on Object catch (_) {
       if (!mounted) {

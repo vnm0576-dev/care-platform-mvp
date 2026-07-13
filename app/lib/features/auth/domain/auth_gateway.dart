@@ -11,5 +11,13 @@ abstract interface class AuthGateway {
 
   Future<AppRole> signIn({required String email, required String password});
 
+  Future<AppRole?> currentRole();
+
   Future<void> signOut();
+}
+
+enum AuthSessionChange { signedIn, signedOut, sessionUpdated }
+
+abstract interface class AuthStateAwareGateway {
+  Stream<AuthSessionChange> get authStateChanges;
 }
