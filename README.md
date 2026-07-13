@@ -12,9 +12,10 @@
 
 ## Быстрый маршрут для следующего разработчика
 
-1. Прочитай [app/README.md](app/README.md): требования Flutter, безопасная конфигурация Supabase и команды запуска.
-2. Прочитай [supabase/README.md](supabase/README.md): порядок миграций, RLS и локальная проверка PostgreSQL.
-3. Перед изменением прикладного кода или схемы создай отдельный GitHub Issue, ветку и PR. Процесс: [docs/agent-workflow.md](docs/agent-workflow.md).
+1. Прочитай [единый контекст проекта](docs/project-handoff.md): актуальное состояние, стратегия concierge-MVP, российская архитектура и юридические границы.
+2. Прочитай [app/README.md](app/README.md): требования Flutter, безопасная конфигурация Supabase и команды запуска.
+3. Прочитай [supabase/README.md](supabase/README.md): порядок миграций, RLS и локальная проверка PostgreSQL.
+4. Перед изменением прикладного кода или схемы создай отдельный GitHub Issue, ветку и PR. Процесс: [docs/agent-workflow.md](docs/agent-workflow.md).
 
 ## Проверенная локальная база данных
 
