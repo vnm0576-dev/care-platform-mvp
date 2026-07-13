@@ -15,3 +15,9 @@ abstract interface class AuthGateway {
 
   Future<void> signOut();
 }
+
+enum AuthSessionChange { signedIn, signedOut, sessionUpdated }
+
+abstract interface class AuthStateAwareGateway {
+  Stream<AuthSessionChange> get authStateChanges;
+}

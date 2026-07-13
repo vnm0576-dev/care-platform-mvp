@@ -210,9 +210,7 @@ void main() {
     );
   });
 
-  testWidgets('opens the caregiver draft instead of the placeholder route', (
-    tester,
-  ) async {
+  testWidgets('opens the caregiver draft route', (tester) async {
     await tester.pumpWidget(
       CarePlatformApp(
         config: configuredAppConfig,
@@ -223,11 +221,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Черновик анкеты сиделки'), findsOneWidget);
-    expect(find.text('Раздел сиделки готов к реализации.'), findsNothing);
   });
-  testWidgets('opens the client request instead of the placeholder route', (
-    tester,
-  ) async {
+  testWidgets('opens the client request route', (tester) async {
     await tester.pumpWidget(
       CarePlatformApp(
         config: configuredAppConfig,
@@ -295,6 +290,90 @@ void main() {
     expect(gateway.signOutCalls, 1);
     expect(find.text('Платформа заботы'), findsOneWidget);
     expect(find.text('Черновик анкеты сиделки'), findsNothing);
+  });
+
+  testWidgets('reacts to external auth session replacement and sign-out', (
+    tester,
+  ) async {
+    final gateway = _StreamingAuthGateway(AppRole.caregiver);
+    addTearDown(gateway.close);
+
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: gateway,
+        caregiverGateway: _FakeCaregiverProfileGateway(),
+        caregiverSearchGateway: _FakeCaregiverSearchGateway(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Черновик анкеты сиделки'), findsOneWidget);
+
+    gateway.replaceSession(AppRole.client);
+    await tester.pumpAndSettle();
+    expect(find.text('Поиск сиделки'), findsOneWidget);
+
+    gateway.endSession();
+    await tester.pumpAndSettle();
+    expect(find.text('Платформа заботы'), findsOneWidget);
+    expect(
+      tester.state<NavigatorState>(find.byType(Navigator)).canPop(),
+      isFalse,
+    );
+  });
+
+  testWidgets('clears protected UI while a replacement session fails to load', (
+    tester,
+  ) async {
+    final gateway = _StreamingAuthGateway(AppRole.caregiver);
+    addTearDown(gateway.close);
+
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: gateway,
+        caregiverGateway: _FakeCaregiverProfileGateway(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Черновик анкеты сиделки'), findsOneWidget);
+
+    gateway.replaceSessionWithError(StateError('temporary lookup failure'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Платформа заботы'), findsOneWidget);
+    expect(find.text('Черновик анкеты сиделки'), findsNothing);
+  });
+
+  testWidgets('does not discard a nested route on token refresh', (
+    tester,
+  ) async {
+    final gateway = _StreamingAuthGateway(AppRole.client);
+    addTearDown(gateway.close);
+
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: gateway,
+        caregiverSearchGateway: _FakeCaregiverSearchGateway(),
+        clientRequestGateway: _FakeClientRequestGateway(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Text('Nested route marker')),
+          ),
+        );
+    await tester.pumpAndSettle();
+    expect(find.text('Nested route marker'), findsOneWidget);
+
+    gateway.updateSession();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nested route marker'), findsOneWidget);
   });
 
   testWidgets('does not let a stale session restore overwrite a new login', (
@@ -458,4 +537,44 @@ class _DeferredRoleAuthGateway extends _FakeAuthGateway {
 
   @override
   Future<AppRole?> currentRole() => _role.future;
+}
+
+class _StreamingAuthGateway extends _FakeAuthGateway
+    implements AuthStateAwareGateway {
+  _StreamingAuthGateway(this._currentRole);
+
+  final _changes = StreamController<AuthSessionChange>.broadcast();
+  AppRole? _currentRole;
+  Object? _currentRoleError;
+
+  @override
+  Stream<AuthSessionChange> get authStateChanges => _changes.stream;
+
+  @override
+  Future<AppRole?> currentRole() async {
+    final error = _currentRoleError;
+    if (error != null) throw error;
+    return _currentRole;
+  }
+
+  void replaceSession(AppRole role) {
+    _currentRoleError = null;
+    _currentRole = role;
+    _changes.add(AuthSessionChange.signedIn);
+  }
+
+  void replaceSessionWithError(Object error) {
+    _currentRoleError = error;
+    _changes.add(AuthSessionChange.signedIn);
+  }
+
+  void updateSession() => _changes.add(AuthSessionChange.sessionUpdated);
+
+  void endSession() {
+    _currentRoleError = null;
+    _currentRole = null;
+    _changes.add(AuthSessionChange.signedOut);
+  }
+
+  Future<void> close() => _changes.close();
 }

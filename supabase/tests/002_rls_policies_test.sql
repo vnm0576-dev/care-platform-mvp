@@ -60,9 +60,9 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-000000000105', 'admin@example.test', '{"full_name":"Administrator","role":"client"}'),
   ('00000000-0000-0000-0000-000000000106', 'client3@example.test', '{"full_name":"Client Three","role":"client"}');
 
-update public.profiles
-set role = 'admin'
-where id = '00000000-0000-0000-0000-000000000105';
+set role service_role;
+select public.bootstrap_admin('00000000-0000-0000-0000-000000000105');
+reset role;
 
 insert into public.caregiver_profiles (
   id, profile_id, full_name, city, contact_phone, experience,
@@ -94,8 +94,70 @@ insert into public.client_requests (
   (
     '20000000-0000-0000-0000-000000000302',
     '00000000-0000-0000-0000-000000000104',
-    'Chelyabinsk', 'post_stroke_care', 'Request two', '+70000000004'
+        'Chelyabinsk', 'post_stroke_care', 'Request two', '+700****0004'
   );
+
+set role service_role;
+do $$
+begin
+  begin
+    perform public.bootstrap_admin('00000000-0000-0000-0000-000000000103');
+    raise exception 'bootstrap accepted a profile with dependent client data';
+  exception
+    when check_violation then null;
+  end;
+end;
+$$;
+reset role;
+select tests.assert_true(
+  (select role from public.profiles
+   where id = '00000000-0000-0000-0000-000000000103') = 'client',
+  'failed admin bootstrap changed the existing client role'
+);
+
+set role service_role;
+do $$
+begin
+  begin
+    perform public.bootstrap_admin('00000000-0000-0000-0000-000000000101');
+    raise exception 'bootstrap accepted a profile with dependent caregiver data';
+  exception
+    when check_violation then null;
+  end;
+end;
+$$;
+reset role;
+select tests.assert_true(
+  (select role from public.profiles
+   where id = '00000000-0000-0000-0000-000000000101') = 'caregiver',
+  'failed admin bootstrap changed the existing caregiver role'
+);
+
+set role anon;
+do $$
+begin
+  begin
+    perform public.bootstrap_admin('00000000-0000-0000-0000-000000000105');
+    raise exception 'anon unexpectedly executed bootstrap_admin';
+  exception
+    when insufficient_privilege then null;
+  end;
+end;
+$$;
+reset role;
+
+set role authenticated;
+do $$
+begin
+  begin
+    perform public.bootstrap_admin('00000000-0000-0000-0000-000000000105');
+    raise exception 'authenticated unexpectedly executed bootstrap_admin';
+  exception
+    when insufficient_privilege then null;
+  end;
+end;
+$$;
+reset role;
 
 -- RLS is enabled on all exposed tables.
 select tests.assert_true(
@@ -133,16 +195,28 @@ end;
 $$;
 reset role;
 
--- Client sees approved caregiver profiles only.
+-- Client reads approved caregivers only through the restricted projection.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000103', false);
 set role authenticated;
 select tests.assert_true(
-  (select count(*) from public.caregiver_profiles) = 1,
-  'client must see only approved caregiver profiles'
+  (select count(*) from public.caregiver_profiles) = 0,
+  'client can read raw caregiver profile rows'
 );
 select tests.assert_true(
-  not exists (select 1 from public.caregiver_profiles where status <> 'approved'),
-  'client saw a non-approved caregiver profile'
+  (select count(*) from public.approved_caregiver_profiles) = 1,
+  'client must see approved caregivers through the restricted projection'
+);
+select tests.assert_true(
+  not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'approved_caregiver_profiles'
+      and column_name in (
+        'profile_id', 'rejection_reason', 'hidden_reason',
+        'rejected_at', 'hidden_at'
+      )
+  ),
+  'restricted caregiver projection exposes internal moderation metadata'
 );
 select tests.assert_true(
   (select count(*) from public.client_requests) = 1,
@@ -150,8 +224,8 @@ select tests.assert_true(
 );
 reset role;
 
--- Caregiver sees their own application and public approved applications,
--- but cannot see client requests.
+-- Caregiver sees only their own application and no client-facing projection
+-- or client requests.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000102', false);
 set role authenticated;
 select tests.assert_true(
@@ -164,6 +238,10 @@ select tests.assert_true(
 select tests.assert_true(
   (select count(*) from public.caregiver_profiles) = 1,
   'caregiver can read another caregiver profile or contact data'
+);
+select tests.assert_true(
+  (select count(*) from public.approved_caregiver_profiles) = 0,
+  'caregiver can read the client-facing caregiver projection'
 );
 update public.caregiver_profiles
 set description = 'Edited eligible draft'
@@ -384,12 +462,17 @@ select tests.assert_true(
 );
 reset role;
 
--- Client now sees both approved profiles, while audit log stays hidden.
+-- Client now sees both approved profiles in the restricted projection, while
+-- raw rows and the audit log stay hidden.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000103', false);
 set role authenticated;
 select tests.assert_true(
-  (select count(*) from public.caregiver_profiles) = 2,
-  'newly approved caregiver is not visible to client'
+  (select count(*) from public.caregiver_profiles) = 0,
+  'client regained access to raw caregiver rows'
+);
+select tests.assert_true(
+  (select count(*) from public.approved_caregiver_profiles) = 2,
+  'newly approved caregiver is not visible in the restricted projection'
 );
 select tests.assert_true(
   (select count(*) from public.moderation_logs) = 0,

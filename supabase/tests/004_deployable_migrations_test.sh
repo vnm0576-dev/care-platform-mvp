@@ -12,11 +12,25 @@ expected_migrations=(
   "20260712140000_repair_legacy_meaningful_skills.sql"
   "20260712150000_repair_hidden_meaningful_skills.sql"
   "20260713100000_harden_profile_text_and_visibility.sql"
+  "20260713110000_restrict_caregiver_projection_and_admin_bootstrap.sql"
 )
 
 for migration in "${expected_migrations[@]}"; do
   if [[ ! -f "$repo_root/supabase/migrations/$migration" ]]; then
     echo "Missing deployable migration: $migration" >&2
+    exit 1
+  fi
+done
+
+actual_migration_paths=("$repo_root"/supabase/migrations/*.sql)
+if [[ ${#actual_migration_paths[@]} -ne ${#expected_migrations[@]} ]]; then
+  echo "Unexpected deployable migration count: expected ${#expected_migrations[@]}, found ${#actual_migration_paths[@]}" >&2
+  exit 1
+fi
+for index in "${!expected_migrations[@]}"; do
+  actual_migration="${actual_migration_paths[$index]##*/}"
+  if [[ "$actual_migration" != "${expected_migrations[$index]}" ]]; then
+    echo "Unexpected migration at position $index: expected ${expected_migrations[$index]}, found $actual_migration" >&2
     exit 1
   fi
 done

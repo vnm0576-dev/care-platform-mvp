@@ -2,10 +2,29 @@ import 'package:care_platform_app/features/auth/domain/auth_gateway.dart';
 import 'package:care_platform_app/features/auth/domain/auth_registration_request.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class SupabaseAuthGateway implements AuthGateway {
+class SupabaseAuthGateway implements AuthGateway, AuthStateAwareGateway {
   const SupabaseAuthGateway(this._client);
 
   final SupabaseClient _client;
+
+  @override
+  Stream<AuthSessionChange> get authStateChanges => _client
+      .auth
+      .onAuthStateChange
+      .map((data) => mapAuthChangeEvent(data.event));
+
+  static AuthSessionChange mapAuthChangeEvent(AuthChangeEvent event) =>
+      switch (event) {
+        AuthChangeEvent.signedIn => AuthSessionChange.signedIn,
+        AuthChangeEvent.signedOut => AuthSessionChange.signedOut,
+        AuthChangeEvent.initialSession ||
+        AuthChangeEvent.passwordRecovery ||
+        AuthChangeEvent.tokenRefreshed ||
+        AuthChangeEvent.userUpdated ||
+        AuthChangeEvent.mfaChallengeVerified =>
+          AuthSessionChange.sessionUpdated,
+        _ => AuthSessionChange.signedOut,
+      };
 
   static bool shouldClearSessionAfterRoleLookupError(Object error) {
     return error is ArgumentError ||

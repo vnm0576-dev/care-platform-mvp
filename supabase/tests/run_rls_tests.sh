@@ -28,6 +28,7 @@ required_files=(
   "supabase/migrations/20260712140000_repair_legacy_meaningful_skills.sql"
   "supabase/migrations/20260712150000_repair_hidden_meaningful_skills.sql"
   "supabase/migrations/20260713100000_harden_profile_text_and_visibility.sql"
+  "supabase/migrations/20260713110000_restrict_caregiver_projection_and_admin_bootstrap.sql"
   "supabase/tests/002_rls_policies_test.sql"
 )
 for relative_path in "${required_files[@]}"; do
@@ -126,5 +127,7 @@ insert into public.caregiver_profiles (
 SQL
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/20260713100000_harden_profile_text_and_visibility.sql"
+sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
+  --file="$tmp_dir/20260713110000_restrict_caregiver_projection_and_admin_bootstrap.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/002_rls_policies_test.sql"

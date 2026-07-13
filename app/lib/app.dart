@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:care_platform_app/core/config/app_config.dart';
 import 'package:care_platform_app/core/theme/app_theme.dart';
 import 'package:care_platform_app/features/admin/data/unavailable_admin_moderation_gateway.dart';
@@ -48,26 +50,64 @@ class _CarePlatformAppState extends State<CarePlatformApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
   AppRole? _role;
   int _authGeneration = 0;
+  StreamSubscription<AuthSessionChange>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
     _restoreSession();
+    if (widget.authGateway case AuthStateAwareGateway gateway) {
+      _authSubscription = gateway.authStateChanges.listen(_authStateChanged);
+    }
   }
 
-  Future<void> _restoreSession() async {
+  void _authStateChanged(AuthSessionChange change) {
+    if (!mounted) return;
+    _authGeneration++;
+    switch (change) {
+      case AuthSessionChange.signedIn:
+        setState(() => _role = null);
+        _navigateToRootWhileSignedOut();
+        _restoreSession();
+      case AuthSessionChange.sessionUpdated:
+        _restoreSession(redirectToRoot: false);
+      case AuthSessionChange.signedOut:
+        setState(() => _role = null);
+        _navigateToRootWhileSignedOut();
+    }
+  }
+
+  void _navigateToRootWhileSignedOut() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _role != null) return;
+      _navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        AppRoutes.root,
+        (route) => false,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _restoreSession({bool redirectToRoot = true}) async {
     final generation = _authGeneration;
+    final previousRole = _role;
     AppRole? role;
     try {
       role = await widget.authGateway.currentRole();
     } on Object {
+      if (previousRole != null) return;
       role = null;
     }
     if (!mounted || generation != _authGeneration) return;
     setState(() {
       _role = role;
     });
-    if (role != null) {
+    if (role != null && (redirectToRoot || role != previousRole)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || generation != _authGeneration || _role != role) return;
         _navigatorKey.currentState?.pushNamedAndRemoveUntil(

@@ -7,6 +7,13 @@ class SupabaseCaregiverSearchGateway implements CaregiverSearchGateway {
 
   final SupabaseClient _client;
 
+  static String exactCityPattern(String city) => city
+      .trim()
+      .replaceAll(r'\', r'\\')
+      .replaceAll('%', r'\%')
+      .replaceAll('_', r'\_')
+      .replaceAll('*', r'\*');
+
   @override
   Future<CaregiverSearchPage> loadApproved({
     required String city,
@@ -14,12 +21,11 @@ class SupabaseCaregiverSearchGateway implements CaregiverSearchGateway {
     required int pageSize,
   }) async {
     var query = _client
-        .from('caregiver_profiles')
+        .from('approved_caregiver_profiles')
         .select(
           'id,full_name,city,experience,schedule,description,contact_phone,approved_at',
         )
-        .eq('status', 'approved')
-        .eq('city', city.trim())
+        .ilike('city', exactCityPattern(city))
         .not('approved_at', 'is', null);
     if (cursor != null) {
       final timestamp = cursor.approvedAt.toUtc().toIso8601String();
