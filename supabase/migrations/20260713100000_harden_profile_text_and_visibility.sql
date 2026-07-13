@@ -11,7 +11,7 @@ as $$
 $$;
 
 revoke all on function public.has_visible_text(text) from public;
-grant execute on function public.has_visible_text(text) to authenticated;
+grant execute on function public.has_visible_text(text) to authenticated, service_role;
 
 alter table public.profiles
   drop constraint profiles_full_name_not_blank_check,
@@ -58,14 +58,29 @@ set
   schedule = case when schedule is not null and not public.has_visible_text(schedule) then null else schedule end,
   description = case when description is not null and not public.has_visible_text(description) then null else description end,
   photo_url = case when photo_url is not null and not public.has_visible_text(photo_url) then null else photo_url end,
-  rejection_reason = case when rejection_reason is not null and not public.has_visible_text(rejection_reason) then null else rejection_reason end,
-  hidden_reason = case when hidden_reason is not null and not public.has_visible_text(hidden_reason) then null else hidden_reason end;
+  rejection_reason = case
+    when rejection_reason is not null and not public.has_visible_text(rejection_reason)
+      then case
+        when status = 'rejected' then 'Причина отклонения требует уточнения'
+        else null
+      end
+    else rejection_reason
+  end,
+  hidden_reason = case
+    when hidden_reason is not null and not public.has_visible_text(hidden_reason)
+      then case
+        when status = 'hidden' then 'Причина скрытия требует уточнения'
+        else null
+      end
+    else hidden_reason
+  end;
 
 update public.caregiver_profiles
 set
   status = 'rejected',
   rejection_reason = 'Заполните обязательные поля анкеты значимым текстом',
   rejected_at = clock_timestamp(),
+  approved_at = null,
   hidden_reason = null,
   hidden_at = null
 where status in ('approved', 'pending_review', 'hidden')

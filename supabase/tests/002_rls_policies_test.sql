@@ -14,6 +14,43 @@ $$;
 grant usage on schema tests to authenticated;
 grant execute on function tests.assert_true(boolean, text) to authenticated;
 
+-- The hardening migration must preserve valid moderation metadata while
+-- replacing whitespace-only legacy values and clearing stale approval data.
+select tests.assert_true(
+  exists (
+    select 1 from public.caregiver_profiles
+    where profile_id = '00000000-0000-0000-0000-000000000008'
+      and status = 'rejected'
+      and public.has_visible_text(rejection_reason)
+      and rejected_at is not null
+  ),
+  'legacy rejected profile lost required moderation metadata during sanitization'
+);
+select tests.assert_true(
+  exists (
+    select 1 from public.caregiver_profiles
+    where profile_id = '00000000-0000-0000-0000-000000000009'
+      and status = 'hidden'
+      and public.has_visible_text(hidden_reason)
+      and hidden_at is not null
+  ),
+  'legacy hidden profile lost required moderation metadata during sanitization'
+);
+select tests.assert_true(
+  exists (
+    select 1 from public.caregiver_profiles
+    where profile_id = '00000000-0000-0000-0000-000000000010'
+      and status = 'rejected'
+      and approved_at is null
+      and public.has_visible_text(rejection_reason)
+  ),
+  'invalid approved profile retained stale approval metadata after demotion'
+);
+select tests.assert_true(
+  has_function_privilege('service_role', 'public.has_visible_text(text)', 'EXECUTE'),
+  'service_role cannot execute the text validator used by table constraints'
+);
+
 -- Fixed auth and application fixtures.
 insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-000000000101', 'caregiver1@example.test', '{"full_name":"Caregiver One","role":"caregiver"}'),
@@ -311,11 +348,11 @@ reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000105', false);
 set role authenticated;
 select tests.assert_true(
-  (select count(*) from public.profiles) = 6,
+  (select count(*) from public.profiles) = 9,
   'admin must see all profiles'
 );
 select tests.assert_true(
-  (select count(*) from public.caregiver_profiles) = 2,
+  (select count(*) from public.caregiver_profiles) = 5,
   'admin must see all caregiver profiles'
 );
 select tests.assert_true(
