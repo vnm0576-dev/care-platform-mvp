@@ -21,21 +21,24 @@ class SupabaseAdminModerationGateway implements AdminModerationGateway {
           'stroke_experience,heart_attack_experience,trauma_experience,'
           'district,education,photo_url,submitted_at',
         )
-        .eq('status', 'pending_review')
-        .order('submitted_at', ascending: true)
-        .order('id', ascending: true);
+        .eq('status', 'pending_review');
     if (cursor != null) {
       final timestamp = cursor.submittedAt.toUtc().toIso8601String();
       query = query.or(
         'submitted_at.gt.$timestamp,and(submitted_at.eq.$timestamp,id.gt.${cursor.id})',
       );
     }
-    final rows = await query.limit(pageSize + 1);
+    final rows = await query
+        .order('submitted_at', ascending: true)
+        .order('id', ascending: true)
+        .limit(pageSize + 1);
     final pageRows = rows.take(pageSize).toList(growable: false);
     return PendingCaregiverProfilesPage(
       items: pageRows.map(_toPendingProfile).toList(growable: false),
       hasMore: rows.length > pageSize,
-      nextCursor: rows.length > pageSize ? _toPendingProfile(pageRows.last).cursor : null,
+      nextCursor: rows.length > pageSize
+          ? _toPendingProfile(pageRows.last).cursor
+          : null,
     );
   }
 

@@ -7,11 +7,11 @@ Executable Flutter foundation for the caregiver/client MVP.
 - Android and Web project scaffolding;
 - Material 3 application shell;
 - safe Supabase initialization through compile-time values;
-- welcome screen and placeholder authentication routes;
-- feature folders for auth, caregiver and client flows;
+- registration and sign-in with role-aware routing;
+- editable caregiver drafts and moderation submission;
+- client caregiver search and care-request fallback;
+- administrator moderation queue;
 - configuration unit tests and startup widget tests.
-
-Authentication forms and business workflows are intentionally scheduled for later issues.
 
 ## Requirements
 
@@ -71,6 +71,7 @@ lib/
 │   ├── config/
 │   └── theme/
 ├── features/
+│   ├── admin/
 │   ├── auth/
 │   ├── caregiver/
 │   └── client/
@@ -88,3 +89,24 @@ dev.vnm0576.care_platform_app
 ```
 
 It can be changed before the first signed release if the final product identity changes.
+
+## Android release signing
+
+Release builds never fall back to the Android debug key. Create a private keystore outside version control and add the ignored file `android/key.properties`:
+
+```properties
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=upload
+storeFile=/absolute/private/path/upload-keystore.jks
+```
+
+Then verify the signed bundle:
+
+```bash
+flutter build appbundle --release \
+  --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
+```
+
+Keep the keystore and both passwords in a password manager and a protected backup. Losing the upload key can block future application updates. Neither `key.properties` nor keystore files may be committed.

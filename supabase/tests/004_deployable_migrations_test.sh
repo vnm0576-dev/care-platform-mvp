@@ -11,6 +11,7 @@ expected_migrations=(
   "20260712130000_require_meaningful_caregiver_skills.sql"
   "20260712140000_repair_legacy_meaningful_skills.sql"
   "20260712150000_repair_hidden_meaningful_skills.sql"
+  "20260713100000_harden_profile_text_and_visibility.sql"
 )
 
 for migration in "${expected_migrations[@]}"; do

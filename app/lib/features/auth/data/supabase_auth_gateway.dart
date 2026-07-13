@@ -48,4 +48,21 @@ class SupabaseAuthGateway implements AuthGateway {
 
   @override
   Future<void> signOut() => _client.auth.signOut();
+
+  @override
+  Future<AppRole?> currentRole() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return null;
+    try {
+      final profile = await _client
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+      return AppRole.fromDatabaseValue(profile['role'] as String);
+    } on Object {
+      await signOut();
+      rethrow;
+    }
+  }
 }

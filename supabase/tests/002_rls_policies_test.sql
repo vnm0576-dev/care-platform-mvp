@@ -15,20 +15,17 @@ grant usage on schema tests to authenticated;
 grant execute on function tests.assert_true(boolean, text) to authenticated;
 
 -- Fixed auth and application fixtures.
-insert into auth.users (id) values
-  ('00000000-0000-0000-0000-000000000101'),
-  ('00000000-0000-0000-0000-000000000102'),
-  ('00000000-0000-0000-0000-000000000103'),
-  ('00000000-0000-0000-0000-000000000104'),
-  ('00000000-0000-0000-0000-000000000105'),
-  ('00000000-0000-0000-0000-000000000106');
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-000000000101', 'caregiver1@example.test', '{"full_name":"Caregiver One","role":"caregiver"}'),
+  ('00000000-0000-0000-0000-000000000102', 'caregiver2@example.test', '{"full_name":"Caregiver Two","role":"caregiver"}'),
+  ('00000000-0000-0000-0000-000000000103', 'client1@example.test', '{"full_name":"Client One","role":"client"}'),
+  ('00000000-0000-0000-0000-000000000104', 'client2@example.test', '{"full_name":"Client Two","role":"client"}'),
+  ('00000000-0000-0000-0000-000000000105', 'admin@example.test', '{"full_name":"Administrator","role":"client"}'),
+  ('00000000-0000-0000-0000-000000000106', 'client3@example.test', '{"full_name":"Client Three","role":"client"}');
 
-insert into public.profiles (id, full_name, role) values
-  ('00000000-0000-0000-0000-000000000101', 'Caregiver One', 'caregiver'),
-  ('00000000-0000-0000-0000-000000000102', 'Caregiver Two', 'caregiver'),
-  ('00000000-0000-0000-0000-000000000103', 'Client One', 'client'),
-  ('00000000-0000-0000-0000-000000000104', 'Client Two', 'client'),
-  ('00000000-0000-0000-0000-000000000105', 'Administrator', 'admin');
+update public.profiles
+set role = 'admin'
+where id = '00000000-0000-0000-0000-000000000105';
 
 insert into public.caregiver_profiles (
   id, profile_id, full_name, city, contact_phone, experience,
@@ -74,22 +71,13 @@ select tests.assert_true(
   'RLS must be enabled on all five MVP tables'
 );
 
--- A new user cannot self-assign admin but can create a normal own profile.
+-- Profiles are trigger-created; authenticated users cannot insert or self-assign admin.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000106', false);
 set role authenticated;
-do $$
-begin
-  begin
-    insert into public.profiles (id, full_name, role)
-    values ('00000000-0000-0000-0000-000000000106', 'Self Admin', 'admin');
-    raise exception 'self-assigned admin role was accepted';
-  exception
-    when insufficient_privilege then null;
-  end;
-end;
-$$;
-insert into public.profiles (id, full_name, role)
-values ('00000000-0000-0000-0000-000000000106', 'Client Three', 'client');
+select tests.assert_true(
+  not has_table_privilege('authenticated', 'public.profiles', 'INSERT'),
+  'authenticated retained INSERT privilege on profiles'
+);
 select tests.assert_true(
   (select count(*) from public.profiles) = 1,
   'ordinary user must see only their own profile'
@@ -135,6 +123,10 @@ select tests.assert_true(
     where id = '10000000-0000-0000-0000-000000000202'
   ),
   'caregiver cannot see their own draft'
+);
+select tests.assert_true(
+  (select count(*) from public.caregiver_profiles) = 1,
+  'caregiver can read another caregiver profile or contact data'
 );
 update public.caregiver_profiles
 set description = 'Edited eligible draft'

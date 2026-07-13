@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:care_platform_app/app.dart';
 import 'package:care_platform_app/core/config/app_config.dart';
 import 'package:care_platform_app/features/admin/domain/admin_moderation.dart';
@@ -214,14 +216,10 @@ void main() {
     await tester.pumpWidget(
       CarePlatformApp(
         config: configuredAppConfig,
-        authGateway: _FakeAuthGateway(),
+        authGateway: _FakeAuthGateway(restoredRole: AppRole.caregiver),
         caregiverGateway: _FakeCaregiverProfileGateway(),
       ),
     );
-
-    tester
-        .state<NavigatorState>(find.byType(Navigator))
-        .pushNamed(AppRoutes.caregiver);
     await tester.pumpAndSettle();
 
     expect(find.text('Черновик анкеты сиделки'), findsOneWidget);
@@ -233,15 +231,11 @@ void main() {
     await tester.pumpWidget(
       CarePlatformApp(
         config: configuredAppConfig,
-        authGateway: _FakeAuthGateway(),
+        authGateway: _FakeAuthGateway(restoredRole: AppRole.client),
         clientRequestGateway: _FakeClientRequestGateway(),
         caregiverSearchGateway: _FakeCaregiverSearchGateway(),
       ),
     );
-
-    tester
-        .state<NavigatorState>(find.byType(Navigator))
-        .pushNamed(AppRoutes.client);
     await tester.pumpAndSettle();
 
     expect(find.text('Поиск сиделки'), findsOneWidget);
@@ -254,18 +248,86 @@ void main() {
     await tester.pumpWidget(
       CarePlatformApp(
         config: configuredAppConfig,
-        authGateway: _FakeAuthGateway(),
+        authGateway: _FakeAuthGateway(restoredRole: AppRole.admin),
         adminModerationGateway: _FakeAdminModerationGateway(),
       ),
     );
+    await tester.pumpAndSettle();
 
+    expect(find.text('Модерация анкет'), findsOneWidget);
+    expect(find.text('Анкеты ожидают модерации'), findsOneWidget);
+  });
+
+  testWidgets('blocks an unauthenticated administrator route', (tester) async {
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: _FakeAuthGateway(),
+      ),
+    );
+    await tester.pumpAndSettle();
     tester
         .state<NavigatorState>(find.byType(Navigator))
         .pushNamed(AppRoutes.admin);
     await tester.pumpAndSettle();
 
-    expect(find.text('Модерация анкет'), findsOneWidget);
-    expect(find.text('Анкеты ожидают модерации'), findsOneWidget);
+    expect(find.text('Платформа заботы'), findsOneWidget);
+    expect(find.text('Модерация анкет'), findsNothing);
+  });
+
+  testWidgets('restores a session and signs out to the welcome screen', (
+    tester,
+  ) async {
+    final gateway = _FakeAuthGateway(restoredRole: AppRole.caregiver);
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: gateway,
+        caregiverGateway: _FakeCaregiverProfileGateway(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Черновик анкеты сиделки'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Выйти'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.signOutCalls, 1);
+    expect(find.text('Платформа заботы'), findsOneWidget);
+    expect(find.text('Черновик анкеты сиделки'), findsNothing);
+  });
+
+  testWidgets('does not let a stale session restore overwrite a new login', (
+    tester,
+  ) async {
+    final gateway = _DeferredRoleAuthGateway();
+    await tester.pumpWidget(
+      CarePlatformApp(
+        config: configuredAppConfig,
+        authGateway: gateway,
+        caregiverGateway: _FakeCaregiverProfileGateway(),
+        adminModerationGateway: _FakeAdminModerationGateway(),
+      ),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Войти'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'caregiver@example.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'secure-pass');
+    await tester.tap(find.widgetWithText(FilledButton, 'Войти'));
+    await tester.pumpAndSettle();
+    expect(find.text('Черновик анкеты сиделки'), findsOneWidget);
+
+    gateway.completeRestore(AppRole.admin);
+    await tester.pumpAndSettle();
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .pushNamed(AppRoutes.admin);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Модерация анкет'), findsNothing);
   });
 }
 
@@ -287,7 +349,7 @@ class _FakeCaregiverSearchGateway implements CaregiverSearchGateway {
   @override
   Future<CaregiverSearchPage> loadApproved({
     required String city,
-    required int page,
+    CaregiverSearchCursor? cursor,
     required int pageSize,
   }) async => const CaregiverSearchPage(items: [], hasMore: false);
 }
@@ -332,12 +394,14 @@ class _FakeCaregiverProfileGateway implements CaregiverProfileGateway {
 }
 
 class _FakeAuthGateway implements AuthGateway {
-  _FakeAuthGateway({this.needsEmailConfirmation = false});
+  _FakeAuthGateway({this.needsEmailConfirmation = false, this.restoredRole});
 
   final bool needsEmailConfirmation;
+  final AppRole? restoredRole;
   String? email;
   String? password;
   AuthRegistrationRequest? signUpRequest;
+  int signOutCalls = 0;
 
   @override
   Future<RegistrationResult> signUp(AuthRegistrationRequest request) async {
@@ -346,7 +410,12 @@ class _FakeAuthGateway implements AuthGateway {
   }
 
   @override
-  Future<void> signOut() async {}
+  Future<AppRole?> currentRole() async => restoredRole;
+
+  @override
+  Future<void> signOut() async {
+    signOutCalls++;
+  }
 
   @override
   Future<AppRole> signIn({
@@ -357,4 +426,13 @@ class _FakeAuthGateway implements AuthGateway {
     this.password = password;
     return AppRole.caregiver;
   }
+}
+
+class _DeferredRoleAuthGateway extends _FakeAuthGateway {
+  final _role = Completer<AppRole?>();
+
+  void completeRestore(AppRole? role) => _role.complete(role);
+
+  @override
+  Future<AppRole?> currentRole() => _role.future;
 }

@@ -19,6 +19,7 @@ class _ClientRequestScreenState extends State<ClientRequestScreen> {
   final _phoneController = TextEditingController();
 
   bool _isSaving = false;
+  bool _isSubmitted = false;
   bool _needsLiveIn = false;
   bool _needsNightShifts = false;
   bool _dementiaCase = false;
@@ -37,6 +38,7 @@ class _ClientRequestScreenState extends State<ClientRequestScreen> {
   }
 
   Future<void> _save() async {
+    if (_isSaving || _isSubmitted) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isSaving = true);
@@ -57,6 +59,7 @@ class _ClientRequestScreenState extends State<ClientRequestScreen> {
         ),
       );
       if (!mounted) return;
+      setState(() => _isSubmitted = true);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Заявка сохранена')));
@@ -142,8 +145,14 @@ class _ClientRequestScreenState extends State<ClientRequestScreen> {
               ),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: _isSaving ? null : _save,
-                child: Text(_isSaving ? 'Сохранение…' : 'Сохранить заявку'),
+                onPressed: _isSaving || _isSubmitted ? null : _save,
+                child: Text(
+                  _isSaving
+                      ? 'Сохранение…'
+                      : _isSubmitted
+                      ? 'Заявка сохранена'
+                      : 'Сохранить заявку',
+                ),
               ),
             ],
           ),

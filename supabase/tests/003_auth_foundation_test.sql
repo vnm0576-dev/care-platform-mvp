@@ -156,6 +156,26 @@ select tests.assert_true(
   'missing-name auth user survived failed registration'
 );
 
+do $$
+begin
+  begin
+    insert into auth.users (id, email, raw_user_meta_data)
+    values (
+      '00000000-0000-0000-0000-000000000414',
+      'whitespace-name@example.test',
+      jsonb_build_object('full_name', E' \t\n ', 'role', 'client')
+    );
+    raise exception 'whitespace-only full_name registration was accepted';
+  exception
+    when invalid_parameter_value then null;
+  end;
+end;
+$$;
+select tests.assert_true(
+  not exists (select 1 from auth.users where id = '00000000-0000-0000-0000-000000000414'),
+  'whitespace-only name auth user survived failed registration'
+);
+
 -- Updating untrusted metadata later does not mutate the application role.
 update auth.users
 set raw_user_meta_data = '{"full_name":"Caregiver Auth","role":"admin"}'::jsonb

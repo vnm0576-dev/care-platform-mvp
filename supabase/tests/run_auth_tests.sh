@@ -23,6 +23,11 @@ required_files=(
   "supabase/migrations/20260710161000_profile_statuses.sql"
   "supabase/migrations/20260710162000_rls_policies.sql"
   "supabase/migrations/20260710163000_auth_foundation.sql"
+  "supabase/migrations/20260712115500_caregiver_profile_editability.sql"
+  "supabase/migrations/20260712130000_require_meaningful_caregiver_skills.sql"
+  "supabase/migrations/20260712140000_repair_legacy_meaningful_skills.sql"
+  "supabase/migrations/20260712150000_repair_hidden_meaningful_skills.sql"
+  "supabase/migrations/20260713100000_harden_profile_text_and_visibility.sql"
   "supabase/tests/003_auth_foundation_test.sql"
 )
 for relative_path in "${required_files[@]}"; do
@@ -88,5 +93,15 @@ SQL
 
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/20260710163000_auth_foundation.sql"
+sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
+  --file="$tmp_dir/20260712115500_caregiver_profile_editability.sql"
+sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
+  --file="$tmp_dir/20260712130000_require_meaningful_caregiver_skills.sql"
+sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
+  --file="$tmp_dir/20260712140000_repair_legacy_meaningful_skills.sql"
+sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
+  --file="$tmp_dir/20260712150000_repair_hidden_meaningful_skills.sql"
+sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
+  --file="$tmp_dir/20260713100000_harden_profile_text_and_visibility.sql"
 sudo -u postgres psql --set=ON_ERROR_STOP=1 --dbname="$db_name" \
   --file="$tmp_dir/003_auth_foundation_test.sql"

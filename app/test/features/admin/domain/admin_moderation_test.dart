@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('pending profile retains all details required for moderation', () {
-    const profile = PendingCaregiverProfile(
+    final profile = PendingCaregiverProfile(
       id: 'profile-1',
       fullName: 'Ирина Петрова',
       city: 'Челябинск',
@@ -24,7 +24,7 @@ void main() {
       district: 'Центральный',
       education: 'Медицинский колледж',
       photoUrl: 'https://example.test/irina.jpg',
-      submittedAt: DateTime(2026, 7, 12, 10),
+      submittedAt: DateTime.utc(2026, 7, 12, 10),
     );
 
     expect(profile.contactPhone, '+799****1122');
@@ -41,10 +41,13 @@ void main() {
     expect(profile.district, 'Центральный');
     expect(profile.education, 'Медицинский колледж');
     expect(profile.photoUrl, 'https://example.test/irina.jpg');
-    expect(profile.cursor, const PendingCaregiverCursor(
-      submittedAt: DateTime(2026, 7, 12, 10),
-      id: 'profile-1',
-    ));
+    expect(
+      profile.cursor,
+      PendingCaregiverCursor(
+        submittedAt: DateTime.utc(2026, 7, 12, 10),
+        id: 'profile-1',
+      ),
+    );
   });
 
   test('pending profiles page indicates whether another page is available', () {
