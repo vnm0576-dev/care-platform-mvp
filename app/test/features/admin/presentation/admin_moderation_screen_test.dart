@@ -20,6 +20,10 @@ void main() {
     expect(find.text('Навыки: Уход при деменции, ЛФК'), findsOneWidget);
     expect(find.text('Сертификаты: Первая помощь'), findsOneWidget);
     expect(find.text('Желаемая оплата: 2500'), findsOneWidget);
+    expect(find.text('Район: Центральный'), findsOneWidget);
+    expect(find.text('Образование: Медицинский колледж'), findsOneWidget);
+    expect(find.text('Фото: https://example.test/irina.jpg'), findsOneWidget);
+    expect(find.text('Отправлено: 2026-07-12 10:00'), findsOneWidget);
     expect(find.text('С проживанием: Да'), findsOneWidget);
     expect(find.text('Ночные смены: Да'), findsOneWidget);
     expect(
@@ -79,7 +83,11 @@ void main() {
   testWidgets('loads the next moderation page on demand', (tester) async {
     final gateway = _FakeAdminModerationGateway(
       pages: const [
-        PendingCaregiverProfilesPage(items: [_firstProfile], hasMore: true),
+        PendingCaregiverProfilesPage(
+          items: [_firstProfile],
+          hasMore: true,
+          nextCursor: _firstProfile.cursor,
+        ),
         PendingCaregiverProfilesPage(items: [_secondProfile], hasMore: false),
       ],
     );
@@ -92,10 +100,7 @@ void main() {
     await tester.tap(find.text('Загрузить ещё'));
     await tester.pumpAndSettle();
 
-    expect(gateway.pageRequests, [
-      (page: 0, pageSize: 20),
-      (page: 1, pageSize: 20),
-    ]);
+    expect(gateway.cursorRequests, [null, _firstProfile.cursor]);
     expect(find.text('Ирина Петрова'), findsOneWidget);
     expect(find.text('Ольга Смирнова'), findsOneWidget);
   });
@@ -128,10 +133,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(gateway.loadCalls, 2);
-      expect(gateway.pageRequests, [
-        (page: 0, pageSize: 20),
-        (page: 0, pageSize: 20),
-      ]);
+      expect(gateway.cursorRequests, [null, null]);
       expect(find.text('Ольга Смирнова'), findsOneWidget);
       expect(find.text('Анкеты ожидают модерации'), findsNothing);
     },
@@ -139,23 +141,24 @@ void main() {
 }
 
 class _FakeAdminModerationGateway implements AdminModerationGateway {
-  _FakeAdminModerationGateway({this.failFirstLoad = false, this._pages});
+  _FakeAdminModerationGateway({this.failFirstLoad = false, List<PendingCaregiverProfilesPage>? pages})
+    : _pages = pages;
 
   final bool failFirstLoad;
   final List<PendingCaregiverProfilesPage>? _pages;
   bool _moderated = false;
   int loadCalls = 0;
-  final List<({int page, int pageSize})> pageRequests = [];
+  final List<PendingCaregiverCursor?> cursorRequests = [];
   final List<({String profileId, ModerationStatus status, String reason})>
   moderationCalls = [];
 
   @override
   Future<PendingCaregiverProfilesPage> loadPending({
-    required int page,
+    PendingCaregiverCursor? cursor,
     required int pageSize,
   }) async {
     loadCalls++;
-    pageRequests.add((page: page, pageSize: pageSize));
+    cursorRequests.add(cursor);
     if (failFirstLoad && loadCalls == 1) throw StateError('offline');
     if (_pages case final pages?) {
       final index = loadCalls - 1;
@@ -203,6 +206,10 @@ const _firstProfile = PendingCaregiverProfile(
   strokeExperience: true,
   heartAttackExperience: true,
   traumaExperience: true,
+  district: 'Центральный',
+  education: 'Медицинский колледж',
+  photoUrl: 'https://example.test/irina.jpg',
+  submittedAt: DateTime(2026, 7, 12, 10),
 );
 
 const _secondProfile = PendingCaregiverProfile(
@@ -223,4 +230,8 @@ const _secondProfile = PendingCaregiverProfile(
   strokeExperience: false,
   heartAttackExperience: false,
   traumaExperience: false,
+  district: null,
+  education: null,
+  photoUrl: null,
+  submittedAt: DateTime(2026, 7, 12, 11),
 );

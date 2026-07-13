@@ -28,6 +28,7 @@ class CaregiverSearchCard {
     required this.experience,
     required this.schedule,
     required this.description,
+    this.contactPhone = '',
   });
 
   final String id;
@@ -36,6 +37,7 @@ class CaregiverSearchCard {
   final String experience;
   final String schedule;
   final String description;
+  final String contactPhone;
 }
 
 class CaregiverSearchPage {

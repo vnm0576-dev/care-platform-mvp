@@ -9,25 +9,33 @@ class SupabaseAdminModerationGateway implements AdminModerationGateway {
 
   @override
   Future<PendingCaregiverProfilesPage> loadPending({
-    required int page,
+    PendingCaregiverCursor? cursor,
     required int pageSize,
   }) async {
-    final from = page * pageSize;
-    final rows = await _client
+    var query = _client
         .from('caregiver_profiles')
         .select(
           'id,full_name,city,contact_phone,experience,certificates,skills,'
           'schedule,description,desired_payment,ready_for_live_in,'
           'ready_for_night_shifts,dementia_experience,bedridden_experience,'
-          'stroke_experience,heart_attack_experience,trauma_experience',
+          'stroke_experience,heart_attack_experience,trauma_experience,'
+          'district,education,photo_url,submitted_at',
         )
         .eq('status', 'pending_review')
         .order('submitted_at', ascending: true)
-        .order('id', ascending: true)
-        .range(from, from + pageSize);
+        .order('id', ascending: true);
+    if (cursor != null) {
+      final timestamp = cursor.submittedAt.toUtc().toIso8601String();
+      query = query.or(
+        'submitted_at.gt.$timestamp,and(submitted_at.eq.$timestamp,id.gt.${cursor.id})',
+      );
+    }
+    final rows = await query.limit(pageSize + 1);
+    final pageRows = rows.take(pageSize).toList(growable: false);
     return PendingCaregiverProfilesPage(
-      items: rows.take(pageSize).map(_toPendingProfile).toList(growable: false),
+      items: pageRows.map(_toPendingProfile).toList(growable: false),
       hasMore: rows.length > pageSize,
+      nextCursor: rows.length > pageSize ? _toPendingProfile(pageRows.last).cursor : null,
     );
   }
 
@@ -68,5 +76,9 @@ class SupabaseAdminModerationGateway implements AdminModerationGateway {
         strokeExperience: row['stroke_experience'] as bool? ?? false,
         heartAttackExperience: row['heart_attack_experience'] as bool? ?? false,
         traumaExperience: row['trauma_experience'] as bool? ?? false,
+        district: row['district'] as String?,
+        education: row['education'] as String?,
+        photoUrl: row['photo_url'] as String?,
+        submittedAt: DateTime.parse(row['submitted_at'] as String),
       );
 }

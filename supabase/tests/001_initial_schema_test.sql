@@ -151,6 +151,20 @@ select tests.assert_true(
   ),
   'legacy approved profile with a tab-only skill was not remediated safely'
 );
+select tests.assert_true(
+  exists (
+    select 1
+    from public.caregiver_profiles
+    where profile_id = '00000000-0000-0000-0000-000000000007'
+      and status = 'rejected'
+      and approved_at is null
+      and hidden_at is null
+      and hidden_reason is null
+      and rejected_at is not null
+      and rejection_reason = 'Profile requires at least one meaningful skill before publication'
+  ),
+  'legacy hidden profile with a tab-only skill was not returned to an editable rejected state'
+);
 
 do $$
 begin

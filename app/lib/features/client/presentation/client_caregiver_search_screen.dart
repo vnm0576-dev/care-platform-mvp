@@ -180,6 +180,8 @@ class _CaregiverCard extends StatelessWidget {
             Text(item.city),
             Text('Опыт: ${item.experience}'),
             Text(item.schedule),
+            if (item.contactPhone.isNotEmpty)
+              Text('Связаться: ${item.contactPhone}'),
             const SizedBox(height: 8),
             Text(item.description),
           ],

@@ -21,6 +21,10 @@ void main() {
       strokeExperience: true,
       heartAttackExperience: true,
       traumaExperience: true,
+      district: 'Центральный',
+      education: 'Медицинский колледж',
+      photoUrl: 'https://example.test/irina.jpg',
+      submittedAt: DateTime(2026, 7, 12, 10),
     );
 
     expect(profile.contactPhone, '+799****1122');
@@ -34,6 +38,13 @@ void main() {
     expect(profile.strokeExperience, isTrue);
     expect(profile.heartAttackExperience, isTrue);
     expect(profile.traumaExperience, isTrue);
+    expect(profile.district, 'Центральный');
+    expect(profile.education, 'Медицинский колледж');
+    expect(profile.photoUrl, 'https://example.test/irina.jpg');
+    expect(profile.cursor, const PendingCaregiverCursor(
+      submittedAt: DateTime(2026, 7, 12, 10),
+      id: 'profile-1',
+    ));
   });
 
   test('pending profiles page indicates whether another page is available', () {

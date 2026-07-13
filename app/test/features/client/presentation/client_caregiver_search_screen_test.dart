@@ -19,6 +19,7 @@ void main() {
               experience: '7 лет',
               schedule: 'Дневные смены',
               description: 'Опыт ухода при деменции',
+              contactPhone: '+799****1122',
             ),
           ],
           hasMore: false,
@@ -46,6 +47,7 @@ void main() {
     expect(find.text('Ирина Петрова'), findsOneWidget);
     expect(find.text('Опыт: 7 лет'), findsOneWidget);
     expect(find.text('Дневные смены'), findsOneWidget);
+    expect(find.text('Связаться: +799****1122'), findsOneWidget);
   });
   testWidgets('offers a client request when no caregivers are available', (
     tester,
@@ -102,6 +104,7 @@ void main() {
               experience: '5 лет',
               schedule: 'Ночные смены',
               description: 'Вторая анкета',
+              contactPhone: '+799****2233',
             ),
           ],
           hasMore: false,

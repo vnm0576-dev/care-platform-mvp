@@ -16,7 +16,9 @@ class SupabaseCaregiverSearchGateway implements CaregiverSearchGateway {
     final range = CaregiverSearchRange.forPage(page: page, pageSize: pageSize);
     final rows = await _client
         .from('caregiver_profiles')
-        .select('id, full_name, city, experience, schedule, description')
+        .select(
+          'id, full_name, city, experience, schedule, description, contact_phone',
+        )
         .eq('status', 'approved')
         .eq('city', city.trim())
         .order('created_at', ascending: false)
@@ -39,6 +41,7 @@ class SupabaseCaregiverSearchGateway implements CaregiverSearchGateway {
       experience: row['experience'] as String,
       schedule: row['schedule'] as String,
       description: row['description'] as String? ?? '',
+      contactPhone: row['contact_phone'] as String? ?? '',
     );
   }
 }

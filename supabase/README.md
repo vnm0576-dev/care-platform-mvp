@@ -11,6 +11,7 @@ This directory contains the executable PostgreSQL foundation for MVP v1.
 - `migrations/20260712115500_caregiver_profile_editability.sql` — server-side restriction of owner edits to draft/rejected questionnaires.
 - `migrations/20260712130000_require_meaningful_caregiver_skills.sql` — publication/submission requirement for nonblank skills, including safe remediation of legacy approved questionnaires.
 - `migrations/20260712140000_repair_legacy_meaningful_skills.sql` — forward repair for databases that already applied the earlier skill migration before tabs/newlines were recognized as blank.
+- `migrations/20260712150000_repair_hidden_meaningful_skills.sql` — forward repair that returns legacy hidden profiles with invalid skills to an owner-editable rejected state.
 - `tests/001_initial_schema_test.sql` — database-level schema assertions, including legacy-skill remediation and whitespace-only skill rejection.
 - `tests/002_rls_policies_test.sql` — role isolation, visibility and moderation assertions.
 - `tests/003_auth_foundation_test.sql` — registration linkage, metadata validation and privilege-escalation assertions.
@@ -27,6 +28,7 @@ This directory contains the executable PostgreSQL foundation for MVP v1.
 5. Apply `migrations/20260712115500_caregiver_profile_editability.sql` to enforce the editable lifecycle server-side.
 6. Apply `migrations/20260712130000_require_meaningful_caregiver_skills.sql` to require meaningful skills for submitted and approved questionnaires. It safely moves legacy approved questionnaires with invalid skill arrays to `rejected`, so their owners can correct and resubmit them.
 7. Apply `migrations/20260712140000_repair_legacy_meaningful_skills.sql` on databases where the prior skills migration may already have run; it repairs tab/newline-only legacy skill arrays that old `btrim()` logic could not detect.
+8. Apply `migrations/20260712150000_repair_hidden_meaningful_skills.sql`; it returns hidden legacy profiles with invalid skills to `rejected`, so their owners can correct and resubmit them.
 
 These filenames follow the Supabase CLI timestamp migration contract, so `supabase db push` includes both schema and required status reference rows without a separate seed command.
 
