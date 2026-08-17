@@ -452,6 +452,14 @@ select tests.assert_true(
   'admin cannot read caregiver contact phone from the protected raw row'
 );
 select tests.assert_true(
+  not exists (
+    select 1
+    from public.approved_caregiver_profiles
+    where contact_phone is not null
+  ),
+  'client-facing caregiver projection exposes contact phone to admin'
+);
+select tests.assert_true(
   (select count(*) from public.client_requests) = 2,
   'admin must see all client requests'
 );
