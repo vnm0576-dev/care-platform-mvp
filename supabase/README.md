@@ -14,6 +14,7 @@ This directory contains the executable PostgreSQL foundation for MVP v1.
 - `migrations/20260712150000_repair_hidden_meaningful_skills.sql` — forward repair that returns legacy hidden profiles with invalid skills to an owner-editable rejected state.
 - `migrations/20260713100000_harden_profile_text_and_visibility.sql` — rejects whitespace-only profile text and limits approved caregiver records to clients, administrators and the owner.
 - `migrations/20260713110000_restrict_caregiver_projection_and_admin_bootstrap.sql` — exposes approved caregivers through a restricted client projection and adds a guarded service-side admin bootstrap.
+- `migrations/20260817110000_redact_caregiver_contact_phone.sql` — redacts caregiver phone numbers from the client projection while preserving its transitional response shape.
 - `tests/001_initial_schema_test.sql` — database-level schema assertions, including legacy-skill remediation and whitespace-only skill rejection.
 - `tests/002_rls_policies_test.sql` — role isolation, visibility and moderation assertions.
 - `tests/003_auth_foundation_test.sql` — registration linkage, metadata validation and privilege-escalation assertions.
@@ -33,6 +34,7 @@ This directory contains the executable PostgreSQL foundation for MVP v1.
 8. Apply `migrations/20260712150000_repair_hidden_meaningful_skills.sql`; it returns hidden legacy profiles with invalid skills to `rejected`, so their owners can correct and resubmit them.
 9. Apply `migrations/20260713100000_harden_profile_text_and_visibility.sql`; it repairs whitespace-only legacy text, strengthens publication/registration invariants and prevents non-client accounts from harvesting approved caregiver contacts.
 10. Apply `migrations/20260713110000_restrict_caregiver_projection_and_admin_bootstrap.sql`; clients then read only the approved public projection, while raw ownership and moderation metadata remain private.
+11. Apply `migrations/20260817110000_redact_caregiver_contact_phone.sql`; catalog reads keep working for existing clients, but the projection returns `NULL` instead of a caregiver's phone until a separate audited assignment workflow is implemented.
 
 These filenames follow the Supabase CLI timestamp migration contract, so `supabase db push` includes both schema and required status reference rows without a separate seed command.
 
