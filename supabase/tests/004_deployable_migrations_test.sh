@@ -13,6 +13,7 @@ expected_migrations=(
   "20260712150000_repair_hidden_meaningful_skills.sql"
   "20260713100000_harden_profile_text_and_visibility.sql"
   "20260713110000_restrict_caregiver_projection_and_admin_bootstrap.sql"
+  "20260817110000_redact_caregiver_contact_phone.sql"
 )
 
 for migration in "${expected_migrations[@]}"; do

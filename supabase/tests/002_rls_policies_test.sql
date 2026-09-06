@@ -208,6 +208,14 @@ select tests.assert_true(
 );
 select tests.assert_true(
   not exists (
+    select 1
+    from public.approved_caregiver_profiles
+    where contact_phone is not null
+  ),
+  'client-facing caregiver projection exposes contact phone'
+);
+select tests.assert_true(
+  not exists (
     select 1 from information_schema.columns
     where table_schema = 'public'
       and table_name = 'approved_caregiver_profiles'
@@ -238,6 +246,11 @@ select tests.assert_true(
 select tests.assert_true(
   (select count(*) from public.caregiver_profiles) = 1,
   'caregiver can read another caregiver profile or contact data'
+);
+select tests.assert_true(
+  (select contact_phone from public.caregiver_profiles
+   where id = '10000000-0000-0000-0000-000000000202') = '+700****0002',
+  'caregiver cannot read their own contact phone from the protected raw row'
 );
 select tests.assert_true(
   (select count(*) from public.approved_caregiver_profiles) = 0,
@@ -432,6 +445,19 @@ select tests.assert_true(
 select tests.assert_true(
   (select count(*) from public.caregiver_profiles) = 5,
   'admin must see all caregiver profiles'
+);
+select tests.assert_true(
+  (select contact_phone from public.caregiver_profiles
+   where id = '10000000-0000-0000-0000-000000000201') = '+700****0001',
+  'admin cannot read caregiver contact phone from the protected raw row'
+);
+select tests.assert_true(
+  not exists (
+    select 1
+    from public.approved_caregiver_profiles
+    where contact_phone is not null
+  ),
+  'client-facing caregiver projection exposes contact phone to admin'
 );
 select tests.assert_true(
   (select count(*) from public.client_requests) = 2,
