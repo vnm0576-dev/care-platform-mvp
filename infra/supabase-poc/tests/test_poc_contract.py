@@ -1,8 +1,10 @@
+import hashlib
 import json
 import os
 import shutil
 import stat
 import subprocess
+import tarfile
 import tempfile
 import textwrap
 import unittest
@@ -78,6 +80,48 @@ class PocContractTest(unittest.TestCase):
             env=env,
         )
 
+    def make_runtime_fixture(self, temp_dir):
+        poc = Path(temp_dir) / "supabase-poc"
+        scripts = poc / "scripts"
+        project = poc / ".runtime" / "project"
+        source = Path(temp_dir) / "upstream-source" / "supabase-fixture" / "docker"
+        scripts.mkdir(parents=True)
+        project.mkdir(parents=True)
+        (source / "volumes" / "api").mkdir(parents=True)
+        shutil.copy2(POC_ROOT / "scripts" / "prepare_runtime.py", scripts / "prepare_runtime.py")
+        shutil.copy2(POC_ROOT / "scripts" / "generate_env.py", scripts / "generate_env.py")
+        (source / "docker-compose.yml").write_text("services: {}\n")
+        (source / ".env.example").write_text("COMPOSE_FILE=docker-compose.yml\n")
+        (source / "volumes" / "api" / "kong.yml").write_text("synthetic-upstream\n")
+        archive = poc / ".runtime" / "upstream.tar.gz"
+        with tarfile.open(archive, "w:gz") as bundle:
+            bundle.add(source.parent, arcname=source.parent.name)
+        archive_digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        provenance = (
+            "SUPABASE_REF=synthetic/ref\n"
+            "SUPABASE_COMMIT=0000000000000000000000000000000000000000\n"
+            "SUPABASE_ARCHIVE_URL=https://example.invalid/upstream.tar.gz\n"
+            f"SUPABASE_ARCHIVE_SHA256={archive_digest}\n"
+        )
+        (poc / "provenance.env").write_text(provenance)
+        (poc / "compose.poc.yml").write_text("services: {}\n")
+        (poc / ".poc-sentinel").write_text(f"{PROJECT_NAME}:issue-74\n")
+        shutil.copytree(source, project, dirs_exist_ok=True)
+        (project / ".env").write_text("SYNTHETIC_SECRET=preserve-me\n")
+        (project / ".env").chmod(0o600)
+        shutil.copy2(poc / "compose.poc.yml", project / "compose.poc.yml")
+        shutil.copy2(poc / ".poc-sentinel", project / ".poc-sentinel")
+        (project / ".supabase-version").write_text(provenance)
+        return poc, project, archive
+
+    def run_prepare(self, poc):
+        return subprocess.run(
+            ["python3", str(poc / "scripts" / "prepare_runtime.py")],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
     def test_provenance_pins_reviewed_upstream_archive(self):
         values = {}
         for line in (POC_ROOT / "provenance.env").read_text().splitlines():
@@ -94,6 +138,65 @@ class PocContractTest(unittest.TestCase):
             values["SUPABASE_ARCHIVE_SHA256"],
             "77b4341e7b50df9c4da1cfbd012c04f90e1eef5695e09a727427dbd6ac9c569f",
         )
+
+    def test_prepare_rejects_cached_runtime_with_stale_provenance(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            poc, project, _ = self.make_runtime_fixture(temp_dir)
+            (project / ".supabase-version").write_text("SUPABASE_REF=stale\n")
+
+            result = self.run_prepare(poc)
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("runtime provenance mismatch", result.stderr)
+            self.assertEqual(
+                (project / ".env").read_text(),
+                "SYNTHETIC_SECRET=preserve-me\n",
+            )
+
+    def test_prepare_rejects_cached_runtime_with_bad_archive_checksum(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            poc, project, archive = self.make_runtime_fixture(temp_dir)
+            archive.write_bytes(archive.read_bytes() + b"tampered")
+
+            result = self.run_prepare(poc)
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("upstream archive checksum mismatch", result.stderr)
+            self.assertEqual(
+                (project / ".env").read_text(),
+                "SYNTHETIC_SECRET=preserve-me\n",
+            )
+
+    def test_prepare_rejects_cached_runtime_with_modified_upstream_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            poc, project, _ = self.make_runtime_fixture(temp_dir)
+            (project / "volumes" / "api" / "kong.yml").write_text("modified\n")
+
+            result = self.run_prepare(poc)
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("cached upstream runtime differs", result.stderr)
+            self.assertEqual(
+                (project / ".env").read_text(),
+                "SYNTHETIC_SECRET=preserve-me\n",
+            )
+
+    def test_prepare_reuses_verified_runtime_and_ignores_additional_data(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            poc, project, _ = self.make_runtime_fixture(temp_dir)
+            (project / "volumes" / "db" / "data").mkdir(parents=True)
+            (project / "volumes" / "db" / "data" / "synthetic-row").write_text(
+                "additional-runtime-data\n"
+            )
+
+            result = self.run_prepare(poc)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("existing secrets preserved", result.stdout)
+            self.assertEqual(
+                (project / ".env").read_text(),
+                "SYNTHETIC_SECRET=preserve-me\n",
+            )
 
     def test_rendered_compose_contract(self):
         if shutil.which("docker") is None:
@@ -219,6 +322,37 @@ class PocContractTest(unittest.TestCase):
         self.assertIn(POC_LABEL, text)
         self.assertIn("verify_cleanup", text)
         self.assertNotIn("--remove-orphans", text)
+
+    def test_migrate_rejects_partial_marker_and_requires_verified_rebuild(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            poc, env = self.make_cleanup_fixture(temp_dir)
+            project = poc / ".runtime" / "project"
+            project.mkdir(parents=True)
+            (project / ".env").write_text("synthetic=true\n")
+            (project / ".env").chmod(0o600)
+            (project / "docker-compose.yml").write_text("services: {}\n")
+            (project / "compose.poc.yml").write_text("services: {}\n")
+            (project / ".poc-sentinel").write_text(
+                f"{PROJECT_NAME}:issue-74\n"
+            )
+            reports = poc / "reports"
+            reports.mkdir()
+            partial_marker = reports / "migrations-applied.txt.tmp"
+            partial_marker.write_text("0001_synthetic.sql\n")
+
+            result = subprocess.run(
+                [str(poc / "poc.sh"), "migrate"],
+                check=False,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 2)
+            self.assertTrue(partial_marker.exists())
+            self.assertIn("partial migration run", result.stderr)
+            self.assertIn("verified destroy", result.stderr)
+            self.assertNotIn("Applying", result.stdout)
 
     def test_destroy_cleans_partial_local_state_and_verifies_absence(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -499,6 +633,7 @@ class PocContractTest(unittest.TestCase):
             "/auth/v1/signup",
             "/auth/v1/token?grant_type=password",
             "/rest/v1/caregiver_profiles",
+            "/rest/v1/client_requests",
             "/rest/v1/rpc/submit_caregiver_profile",
             "/rest/v1/rpc/bootstrap_admin",
             "/rest/v1/rpc/moderate_caregiver_profile",
@@ -507,7 +642,7 @@ class PocContractTest(unittest.TestCase):
             self.assertIn(endpoint, text)
         self.assertNotIn("print(access_token", text)
         self.assertNotIn("print(service_role", text)
-        self.assertIn("len(set(ids)) == 4", text)
+        self.assertIn("len(set(ids)) == 5", text)
         self.assertGreaterEqual(
             text.count('for actor, token in (("caregiver", caregiver_token), ("client", client_token))'),
             2,
@@ -520,6 +655,54 @@ class PocContractTest(unittest.TestCase):
             "anonymous raw caregiver access is denied",
         ):
             self.assertIn(assertion, text)
+
+    def test_smoke_covers_client_request_crud_and_cross_user_boundaries(self):
+        text = (POC_ROOT / "scripts" / "smoke_test.py").read_text()
+        self.assertIn("/rest/v1/client_requests", text)
+        self.assertIn('accounts["other-client"]', text)
+        self.assertIn("len(set(ids)) == 5", text)
+        for assertion in (
+            "client creates own synthetic request over REST",
+            "client reads own synthetic request over REST",
+            "denied client request updates leave owner state unchanged",
+            "denied client request deletes leave owner state unchanged",
+            "client updates own synthetic request over REST",
+            "client deletes own synthetic request over REST",
+            "owner read confirms synthetic client request deletion",
+        ):
+            self.assertIn(assertion, text)
+        for operation in ("create", "read", "update", "delete"):
+            self.assertIn(f'f"{{actor}} cannot {operation} client request', text)
+        for health_flag in (
+            "dementia_case",
+            "bedridden_case",
+            "stroke_case",
+            "heart_attack_case",
+            "trauma_case",
+        ):
+            self.assertIn(f'"{health_flag}": False', text)
+
+    def test_approved_projection_query_targets_new_questionnaire(self):
+        text = (POC_ROOT / "scripts" / "smoke_test.py").read_text()
+        projection_query = text[text.index("query = urllib.parse.urlencode"):]
+        self.assertIn('"id": f"eq.{encoded}"', projection_query)
+
+    def test_smoke_denies_direct_status_write_while_questionnaire_is_draft(self):
+        text = (POC_ROOT / "scripts" / "smoke_test.py").read_text()
+        submission = text.index("caregiver submits questionnaire through protected RPC")
+        draft_phase = text[:submission]
+        self.assertIn("owner cannot mutate draft moderation status directly", draft_phase)
+        self.assertIn("denied direct status write leaves questionnaire in draft", draft_phase)
+
+    def test_smoke_rechecks_raw_caregiver_isolation_after_approval(self):
+        text = (POC_ROOT / "scripts" / "smoke_test.py").read_text()
+        approval = text.index("admin moderates through protected RPC")
+        post_approval = text[approval:]
+        self.assertIn("client raw caregiver read remains denied after approval", post_approval)
+        self.assertIn(
+            "cross-caregiver raw read remains denied after approval",
+            post_approval,
+        )
 
     def test_runtime_and_secret_files_are_ignored(self):
         text = (POC_ROOT / ".gitignore").read_text().splitlines()

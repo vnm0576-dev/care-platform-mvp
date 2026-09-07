@@ -422,8 +422,8 @@ apply_migrations() {
   require_runtime
   mkdir -p "$REPORTS"
   local marker="$REPORTS/migrations-applied.txt" name
-  [[ ! -e "$marker" ]] || {
-    echo "ERROR: migrations were already applied; use a fresh runtime for a repeatable run" >&2
+  [[ ! -e "$marker" && ! -e "$marker.tmp" ]] || {
+    echo "ERROR: completed or partial migration run detected; run verified destroy and prepare a fresh runtime before retrying" >&2
     return 2
   }
   : >"$marker.tmp"

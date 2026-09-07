@@ -92,19 +92,27 @@ def main() -> int:
     password = secrets.token_urlsafe(18)
     accounts = {
         role: f"synthetic-{role}-{run_id}@example.invalid"
-        for role in ("caregiver", "other-caregiver", "client", "admin-candidate")
+        for role in (
+            "caregiver",
+            "other-caregiver",
+            "client",
+            "other-client",
+            "admin-candidate",
+        )
     }
 
     caregiver_id = signup(base, anon, accounts["caregiver"], password, "caregiver")
     other_id = signup(base, anon, accounts["other-caregiver"], password, "caregiver")
     client_id = signup(base, anon, accounts["client"], password, "client")
+    other_client_id = signup(base, anon, accounts["other-client"], password, "client")
     admin_id = signup(base, anon, accounts["admin-candidate"], password, "client")
-    ids = (caregiver_id, other_id, client_id, admin_id)
-    require(len(set(ids)) == 4, "synthetic Auth identities are distinct")
+    ids = (caregiver_id, other_id, client_id, other_client_id, admin_id)
+    require(len(set(ids)) == 5, "synthetic Auth identities are distinct")
 
     caregiver_token = login(base, anon, accounts["caregiver"], password)
     other_token = login(base, anon, accounts["other-caregiver"], password)
     client_token = login(base, anon, accounts["client"], password)
+    other_client_token = login(base, anon, accounts["other-client"], password)
     admin_token = login(base, anon, accounts["admin-candidate"], password)
 
     profile = {
@@ -192,6 +200,202 @@ def main() -> int:
         and len(rows) == 1
         and rows[0]["status"] == "draft",
         "cross-user delete leaves caregiver profile unchanged",
+    )
+
+    status, _ = request(
+        base,
+        f"/rest/v1/caregiver_profiles?id=eq.{encoded}",
+        anon,
+        caregiver_token,
+        method="PATCH",
+        body={"status": "approved"},
+        prefer="return=representation",
+    )
+    require(
+        status in (400, 401, 403),
+        "owner cannot mutate draft moderation status directly",
+    )
+    status, rows = request(
+        base,
+        f"/rest/v1/caregiver_profiles?id=eq.{encoded}&select=id,status",
+        anon,
+        caregiver_token,
+    )
+    require(
+        status == 200
+        and isinstance(rows, list)
+        and len(rows) == 1
+        and rows[0]["status"] == "draft",
+        "denied direct status write leaves questionnaire in draft",
+    )
+
+    client_request = {
+        "profile_id": client_id,
+        "city": "Synthetic Request City",
+        "district": "Synthetic District",
+        "care_type": "Synthetic household assistance",
+        "description": "Invented non-clinical request for authorization testing",
+        "contact_phone": "+700****1000",
+        "preferred_schedule": "Synthetic daytime schedule",
+        "desired_payment": 0,
+        "needs_live_in": False,
+        "needs_night_shifts": False,
+        "dementia_case": False,
+        "bedridden_case": False,
+        "stroke_case": False,
+        "heart_attack_case": False,
+        "trauma_case": False,
+    }
+    client_requests_path = "/rest/v1/client_requests"
+    negative_actors = (
+        ("anonymous", None),
+        ("caregiver", caregiver_token),
+        ("other-client", other_client_token),
+    )
+    for actor, token in negative_actors:
+        status, _ = request(
+            base,
+            f"{client_requests_path}?select=id,profile_id,city",
+            anon,
+            token,
+            method="POST",
+            body=client_request,
+            prefer="return=representation",
+        )
+        require(
+            status in (401, 403),
+            f"{actor} cannot create client request for another identity",
+        )
+    client_id_encoded = urllib.parse.quote(client_id, safe="")
+    status, rows = request(
+        base,
+        f"{client_requests_path}?profile_id=eq.{client_id_encoded}&select=id",
+        anon,
+        client_token,
+    )
+    require(
+        status == 200 and rows == [],
+        "denied cross-user creates leave client requests empty",
+    )
+
+    status, rows = request(
+        base,
+        f"{client_requests_path}?select=id,profile_id,city,care_type",
+        anon,
+        client_token,
+        method="POST",
+        body=client_request,
+        prefer="return=representation",
+    )
+    require(
+        status == 201
+        and isinstance(rows, list)
+        and len(rows) == 1
+        and rows[0]["profile_id"] == client_id,
+        "client creates own synthetic request over REST",
+    )
+    client_request_id = rows[0]["id"]
+    request_id_encoded = urllib.parse.quote(client_request_id, safe="")
+    owner_request_path = (
+        f"{client_requests_path}?id=eq.{request_id_encoded}"
+        "&select=id,profile_id,city,care_type"
+    )
+    status, rows = request(base, owner_request_path, anon, client_token)
+    require(
+        status == 200
+        and isinstance(rows, list)
+        and len(rows) == 1
+        and rows[0]["city"] == "Synthetic Request City",
+        "client reads own synthetic request over REST",
+    )
+
+    for actor, token in negative_actors:
+        status, rows = request(base, owner_request_path, anon, token)
+        require(
+            status in (200, 401, 403) and (status != 200 or rows == []),
+            f"{actor} cannot read client request owned by another identity",
+        )
+
+    for actor, token in negative_actors:
+        status, rows = request(
+            base,
+            owner_request_path,
+            anon,
+            token,
+            method="PATCH",
+            body={"city": "Unauthorized Synthetic City"},
+            prefer="return=representation",
+        )
+        require(
+            status in (200, 401, 403) and (status != 200 or rows == []),
+            f"{actor} cannot update client request owned by another identity",
+        )
+    status, rows = request(base, owner_request_path, anon, client_token)
+    require(
+        status == 200
+        and len(rows) == 1
+        and rows[0]["city"] == "Synthetic Request City",
+        "denied client request updates leave owner state unchanged",
+    )
+
+    for actor, token in negative_actors:
+        status, rows = request(
+            base,
+            owner_request_path,
+            anon,
+            token,
+            method="DELETE",
+            prefer="return=representation",
+        )
+        require(
+            status in (200, 401, 403) and (status != 200 or rows == []),
+            f"{actor} cannot delete client request owned by another identity",
+        )
+    status, rows = request(base, owner_request_path, anon, client_token)
+    require(
+        status == 200 and len(rows) == 1,
+        "denied client request deletes leave owner state unchanged",
+    )
+
+    status, rows = request(
+        base,
+        owner_request_path,
+        anon,
+        client_token,
+        method="PATCH",
+        body={"city": "Synthetic Updated Request City"},
+        prefer="return=representation",
+    )
+    require(
+        status == 200
+        and len(rows) == 1
+        and rows[0]["city"] == "Synthetic Updated Request City",
+        "client updates own synthetic request over REST",
+    )
+    status, rows = request(base, owner_request_path, anon, client_token)
+    require(
+        status == 200
+        and len(rows) == 1
+        and rows[0]["city"] == "Synthetic Updated Request City",
+        "owner read confirms synthetic client request update",
+    )
+
+    status, rows = request(
+        base,
+        owner_request_path,
+        anon,
+        client_token,
+        method="DELETE",
+        prefer="return=representation",
+    )
+    require(
+        status == 200 and len(rows) == 1,
+        "client deletes own synthetic request over REST",
+    )
+    status, rows = request(base, owner_request_path, anon, client_token)
+    require(
+        status == 200 and rows == [],
+        "owner read confirms synthetic client request deletion",
     )
 
     status, _ = request(
@@ -287,7 +491,28 @@ def main() -> int:
     )
     require(status in (200, 204), "admin moderates through protected RPC")
 
-    query = urllib.parse.urlencode({"city": "eq.Synthetic City", "select": "id,contact_phone"})
+    for message, token in (
+        ("client raw caregiver read remains denied after approval", client_token),
+        (
+            "cross-caregiver raw read remains denied after approval",
+            other_token,
+        ),
+    ):
+        status, rows = request(
+            base,
+            f"/rest/v1/caregiver_profiles?id=eq.{encoded}",
+            anon,
+            token,
+        )
+        require(status == 200 and rows == [], message)
+
+    query = urllib.parse.urlencode(
+        {
+            "city": "eq.Synthetic City",
+            "id": f"eq.{encoded}",
+            "select": "id,contact_phone",
+        }
+    )
     status, rows = request(base, f"/rest/v1/approved_caregiver_profiles?{query}", anon, client_token)
     require(status == 200 and len(rows) == 1, "client sees the approved synthetic projection")
     require(rows[0]["contact_phone"] is None, "client projection redacts caregiver phone to NULL")
@@ -295,16 +520,6 @@ def main() -> int:
     status, rows = request(base, f"/rest/v1/approved_caregiver_profiles?{query}", anon, other_token)
     require(status == 200 and rows == [], "caregiver cannot read the client projection")
 
-    status, _ = request(
-        base,
-        f"/rest/v1/caregiver_profiles?id=eq.{encoded}",
-        anon,
-        caregiver_token,
-        method="PATCH",
-        body={"status": "approved"},
-        prefer="return=representation",
-    )
-    require(status in (400, 401, 403), "ordinary user cannot mutate moderation status directly")
     print("Synthetic HTTP/JWT smoke completed; no secrets were printed.")
     return 0
 

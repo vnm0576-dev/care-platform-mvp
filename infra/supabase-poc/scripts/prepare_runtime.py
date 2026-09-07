@@ -30,11 +30,55 @@ def archive_sha(path: Path) -> str:
     return digest.hexdigest()
 
 
+def find_upstream_docker(extracted: Path) -> Path | None:
+    docker_dirs = [path for path in extracted.glob("*/docker") if path.is_dir()]
+    return docker_dirs[0] if len(docker_dirs) == 1 else None
+
+
+def upstream_files_match(source: Path, target: Path) -> bool:
+    for source_path in source.rglob("*"):
+        relative = source_path.relative_to(source)
+        target_path = target / relative
+        if source_path.is_symlink():
+            if not target_path.is_symlink() or target_path.readlink() != source_path.readlink():
+                return False
+        elif source_path.is_dir():
+            if not target_path.is_dir() or target_path.is_symlink():
+                return False
+        elif source_path.is_file():
+            if not target_path.is_file() or target_path.is_symlink():
+                return False
+            if archive_sha(source_path) != archive_sha(target_path):
+                return False
+        else:
+            return False
+    return True
+
+
 def main() -> int:
     provenance = load_provenance()
     if PROJECT.exists():
         required = [PROJECT / ".env", PROJECT / "docker-compose.yml", PROJECT / "compose.poc.yml"]
         if all(path.is_file() for path in required):
+            version_file = PROJECT / ".supabase-version"
+            if not version_file.is_file() or version_file.read_bytes() != (ROOT / "provenance.env").read_bytes():
+                print("ERROR: runtime provenance mismatch; run verified cleanup before preparing again", file=sys.stderr)
+                return 2
+            archive = RUNTIME / "upstream.tar.gz"
+            if not archive.is_file() or archive_sha(archive) != provenance["SUPABASE_ARCHIVE_SHA256"]:
+                print("ERROR: upstream archive checksum mismatch", file=sys.stderr)
+                return 2
+            with tempfile.TemporaryDirectory(dir=RUNTIME) as temp_dir:
+                extracted = Path(temp_dir)
+                with tarfile.open(archive) as bundle:
+                    bundle.extractall(extracted, filter="data")
+                upstream_docker = find_upstream_docker(extracted)
+                if upstream_docker is None:
+                    print("ERROR: reviewed upstream docker directory not found", file=sys.stderr)
+                    return 2
+                if not upstream_files_match(upstream_docker, PROJECT):
+                    print("ERROR: cached upstream runtime differs from the verified archive; run verified cleanup", file=sys.stderr)
+                    return 2
             shutil.copy2(ROOT / "compose.poc.yml", PROJECT / "compose.poc.yml")
             shutil.copy2(ROOT / ".poc-sentinel", PROJECT / ".poc-sentinel")
             print("Runtime already prepared; override refreshed and existing secrets preserved.")
