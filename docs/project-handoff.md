@@ -271,6 +271,8 @@ Hermes должен быть перенесён на отдельную росс
 
 ### Этап 0. Инвентаризация
 
+Исходные зависимости, потоки данных, пробелы и критерии приёмки собраны в [инвентаризации staging](staging-deployment-inventory.md). Это проверка исходного кода, а не подтверждение работающего российского deployment.
+
 - Supabase calls во Flutter;
 - Auth flows;
 - зависимости от `auth.users`;
@@ -334,7 +336,9 @@ flutter build web
 
 ## 15. Следующий безопасный шаг
 
-Создать отдельный GitHub Issue для российского staging/PoC. Не менять текущую production-архитектуру одним большим коммитом. Разбить на:
+Этап 0 оформлен в Issue #73 и [инвентаризации staging](staging-deployment-inventory.md). Следующий отдельный Issue #74 — воспроизводимая подготовка локального synthetic-only PoC self-hosted Supabase (Docker Compose, безопасные шаблоны конфигурации и smoke checks), без реальных ПДн и платного provisioning. Локальный PoC не заменяет российский staging.
+
+Не менять текущую production-архитектуру одним большим коммитом. Дальнейшие этапы:
 
 1. deployment inventory;
 2. Docker Compose staging;
