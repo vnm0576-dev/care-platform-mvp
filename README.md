@@ -64,6 +64,8 @@ flutter run -d chrome \
 
 Миграции находятся в [supabase/migrations](supabase/migrations). Они предполагают штатную Supabase-таблицу `auth.users`; не создавай и не заменяй её вручную. Точный порядок применения, включая forward-repair для уже применённой старой проверки навыков, указан в [supabase/README.md](supabase/README.md).
 
+Для воспроизводимого локального synthetic-only self-hosted PoC используй [изолированный Compose-контур](infra/supabase-poc/README.md). Его [зафиксированный smoke-run](docs/synthetic-supabase-poc-run.md) проверяет реальный GoTrue/PostgREST и всю цепочку миграций, но не является российским staging или production-проверкой.
+
 Перед подключением Flutter к размещённому проекту нужно:
 
 1. создать и защитить Supabase-проект;

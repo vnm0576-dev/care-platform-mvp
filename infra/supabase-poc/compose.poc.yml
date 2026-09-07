@@ -1,0 +1,90 @@
+name: care-platform-supabase-poc
+
+x-poc-labels: &poc-labels
+  com.care-platform.synthetic-poc: issue-74
+
+services:
+  studio:
+    container_name: care-platform-poc-studio
+    image: supabase/studio:2026.08.03-sha-022b374@sha256:606aca9fdaa753b60968d5c304e2ada83869b76c9043684e63d5885aca9550e8
+    labels: *poc-labels
+
+  api-gw:
+    container_name: care-platform-poc-api-gw
+    image: envoyproxy/envoy:v1.39.0@sha256:d59f7f5fa10cff6d5892b6c5e7df5c9297ddfb2c3683e33fbfb82da24de4fa66
+    labels: *poc-labels
+    ports: !override
+      - target: 8000
+        published: "${POC_API_PORT:-18000}"
+        host_ip: "127.0.0.1"
+        protocol: tcp
+
+  supavisor:
+    container_name: care-platform-poc-supavisor
+    image: supabase/supavisor:2.9.5@sha256:31c2f05b13b11069660fdfae2f6cfd37b509748d2710aca121cfee8b16cb8b07
+    labels: *poc-labels
+    ports: !override
+      - target: 5432
+        published: "${POC_DB_PORT:-15432}"
+        host_ip: "127.0.0.1"
+        protocol: tcp
+      - target: 6543
+        published: "${POC_POOLER_PORT:-16543}"
+        host_ip: "127.0.0.1"
+        protocol: tcp
+
+  auth:
+    container_name: care-platform-poc-auth
+    image: supabase/gotrue:v2.189.0@sha256:385184459f57569c54c25209f51f3b2be99ddd7c4ce9e3555b5d3eea8447b7cf
+    labels: *poc-labels
+    depends_on:
+      mailpit:
+        condition: service_started
+    environment:
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+      GOTRUE_SMS_AUTOCONFIRM: "false"
+      GOTRUE_SMTP_HOST: mailpit
+      GOTRUE_SMTP_PORT: 1025
+      GOTRUE_SMTP_USER: synthetic-only
+      GOTRUE_SMTP_PASS: synthetic-only
+
+  rest:
+    container_name: care-platform-poc-rest
+    image: postgrest/postgrest:v14.12@sha256:54000f24847d01a2c2302e0041cf0618b875c57fb48507d743cfa9aaa50bf43c
+    labels: *poc-labels
+
+  meta:
+    container_name: care-platform-poc-meta
+    image: supabase/postgres-meta:v0.96.6@sha256:a84cc713585eea7b401e4a2561ec4a1e48c87083d1c7ecb4502f204bb4391300
+    labels: *poc-labels
+
+  db:
+    container_name: care-platform-poc-db
+    image: supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
+    labels: *poc-labels
+
+  mailpit:
+    container_name: care-platform-poc-mailpit
+    image: axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365
+    labels: *poc-labels
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "0"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_MAX_MESSAGES: "100"
+    ports: !override
+      - target: 8025
+        published: "${POC_MAILPIT_PORT:-18025}"
+        host_ip: "127.0.0.1"
+        protocol: tcp
+
+networks:
+  default:
+    labels: *poc-labels
+
+volumes:
+  db-config:
+    labels: *poc-labels
+  deno-cache:
+    labels: *poc-labels

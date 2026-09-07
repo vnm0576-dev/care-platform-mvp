@@ -336,7 +336,7 @@ flutter build web
 
 ## 15. Следующий безопасный шаг
 
-Этап 0 оформлен в Issue #73 и [инвентаризации staging](staging-deployment-inventory.md). Следующий отдельный Issue #74 — воспроизводимая подготовка локального synthetic-only PoC self-hosted Supabase (Docker Compose, безопасные шаблоны конфигурации и smoke checks), без реальных ПДн и платного provisioning. Локальный PoC не заменяет российский staging.
+Этап 0 оформлен в Issue #73 и [инвентаризации staging](staging-deployment-inventory.md). Issue #74 подготовил воспроизводимый [локальный synthetic-only PoC self-hosted Supabase](../infra/supabase-poc/README.md): зафиксированы upstream Compose и digest образов, безопасная локальная конфигурация, полная цепочка миграций и HTTP/JWT smoke checks. [Отчёт фактического прогона](synthetic-supabase-poc-run.md) относится только к одноразовой локальной среде; он не заменяет российский staging.
 
 Не менять текущую production-архитектуру одним большим коммитом. Дальнейшие этапы:
 
